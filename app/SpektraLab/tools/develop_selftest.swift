@@ -312,6 +312,42 @@ func noteChecks(_ c: inout Checker, _ rules: Rules, catalog: StockCatalog) {
 }
 
 /// Frame's size cards: the name on the card is the size the engine is sent.
+/// The finish path's fields are told their rest when they leave the wire (the owner's bug,
+/// 2026-11-11: the film came back and the preview did not change until the page was reopened —
+/// a delta built only from the keys present in `now` never turns a key off).
+func finishWireChecks(_ c: inout Checker) {
+    // The white balance starts away from neutral (a finish wire once told it), so the reset has
+    // something to undo: a value already at rest is correctly not re-sent.
+    var applied: [String: ParamValue] = ["finish_only": .bool(true), "input_cctf_decoding": .bool(true),
+                                         "scene_wb_temperature": .double(4000), "scene_wb_tint": .double(-10),
+                                         "film_stock": .string("kodak_portra_400")]
+    let filmOn: [String: ParamValue] = ["film_stock": .string("kodak_portra_400"),
+                                        "print_stock": .string("kodak_portra_endura")]
+    let off = FilmParams.step(from: &applied, to: filmOn)
+    c.expect(off["finish_only"] == .bool(false), "finish wire: leaving the wire turns finish_only off")
+    c.expect(off["input_cctf_decoding"] == .bool(false), "finish wire: and input_cctf_decoding off")
+    c.expect(off["scene_wb_temperature"] == .double(6500) && off["scene_wb_tint"] == .double(0),
+             "finish wire: and the white balance back to neutral")
+    // Back into the finish path: the fields come with the wire again — a stock change may have
+    // pruned `applied` to the keys the new wire carries (it does), and the next wire still tells
+    // its own fields, because absent-from-applied is not equal-to-them.
+    let finish: [String: ParamValue] = ["finish_only": .bool(true), "input_cctf_decoding": .bool(true),
+                                        "scene_wb_temperature": .double(6500), "scene_wb_tint": .double(0),
+                                        "film_stock": .string("kodak_portra_400")]
+    let on = FilmParams.step(from: &applied, to: finish)
+    c.expect(on["finish_only"] == .bool(true) && on["input_cctf_decoding"] == .bool(true),
+             "finish wire: entering the finish path sends it again")
+    // And out again, after the prune: the rest still reaches the session.
+    let off2 = FilmParams.step(from: &applied, to: filmOn)
+    c.expect(off2["finish_only"] == .bool(false) && off2["input_cctf_decoding"] == .bool(false),
+             "finish wire: and out again after a stock change pruned the bookkeeping")
+    // A wire that never carried them is never told them: no spurious resets.
+    var plain: [String: ParamValue] = ["film_stock": .string("kodak_portra_400")]
+    let none = FilmParams.step(from: &plain, to: filmOn)
+    c.expect(none["finish_only"] == nil && none["input_cctf_decoding"] == nil,
+             "finish wire: a wire that never carried them sends nothing about them")
+}
+
 /// The finish path (2026-11-09): film and paper's colour off, the frame's own
 /// picture kept, and the film edge, the date and the grain still drawn.
 func finishChecks(_ c: inout Checker) {
@@ -854,6 +890,7 @@ struct DevelopSelfTest {
             noteChecks(&c, rules, catalog: catalog)
             sizeChecks(&c, rules)
             finishChecks(&c)
+            finishWireChecks(&c)
             slideChecks(&c, rules, catalog: catalog)
             silverChecks(&c, rules, catalog: catalog)
             pageChecks(&c, rules, catalog: catalog)

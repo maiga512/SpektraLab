@@ -843,8 +843,22 @@ struct FilmParams: Codable, Equatable, Sendable {
     /// (measured through a banded engine, 2026-10-09: a mean of 46,490 of 65,535
     /// where the pack gives 36,308). So at a stock change `applied` is cut back
     /// to the fields the wire has now.
+    /// What the finish path's fields are told when they leave the wire. Apply Film Emulation
+    /// carries `finish_only` and `input_cctf_decoding` with it, and a delta built only from the
+    /// keys **present** in `now` would never turn them off: the session would keep rendering the
+    /// finish path after the film came back, and the preview would not change until the page was
+    /// reopened and the session with it (the owner's bug, 2026-11-11). The white balance rides
+    /// the same way — neutral, because the source decode owns it now.
+    static let finishRest: [String: ParamValue] = ["finish_only": .bool(false),
+                                                   "input_cctf_decoding": .bool(false),
+                                                   "scene_wb_temperature": .double(6500),
+                                                   "scene_wb_tint": .double(0)]
+
     static func step(from applied: inout [String: ParamValue], to now: [String: ParamValue]) -> [String: ParamValue] {
-        let delta = now.filter { applied[$0.key] != $0.value }
+        var delta = now.filter { applied[$0.key] != $0.value }
+        for (name, rest) in finishRest where now[name] == nil {
+            if let told = applied[name], told != rest { delta[name] = rest }
+        }
         applied.merge(delta) { _, new in new }
         if delta["film_stock"] != nil || delta["print_stock"] != nil {
             applied = applied.filter { now[$0.key] != nil }
