@@ -104,6 +104,7 @@ final class DevelopPanelPrefs {
     private static let decodeFoldKey = "develop.wide.decode.collapsed"
     private static let filmEdgeFoldKey = "develop.wide.filmEdge.collapsed"
     private static let dateBackFoldKey = "develop.wide.dateBack.collapsed"
+    private static let enlargerFoldKey = "develop.wide.enlarger.collapsed"
 
     var histogramStyle: HistogramStyle { didSet { defaults.set(histogramStyle.rawValue, forKey: Self.styleKey) } }
     var histogramCollapsed: Bool { didSet { defaults.set(histogramCollapsed, forKey: Self.histogramFoldKey) } }
@@ -114,6 +115,8 @@ final class DevelopPanelPrefs {
     var decodeCollapsed: Bool { didSet { defaults.set(decodeCollapsed, forKey: Self.decodeFoldKey) } }
     var filmEdgeCollapsed: Bool { didSet { defaults.set(filmEdgeCollapsed, forKey: Self.filmEdgeFoldKey) } }
     var dateBackCollapsed: Bool { didSet { defaults.set(dateBackCollapsed, forKey: Self.dateBackFoldKey) } }
+    /// 解码 › 放大机 folds on its own (2026-11-10): open until folded.
+    var enlargerCollapsed: Bool { didSet { defaults.set(enlargerCollapsed, forKey: Self.enlargerFoldKey) } }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -124,5 +127,6 @@ final class DevelopPanelPrefs {
         decodeCollapsed = defaults.bool(forKey: Self.decodeFoldKey)
         filmEdgeCollapsed = defaults.bool(forKey: Self.filmEdgeFoldKey)
         dateBackCollapsed = defaults.bool(forKey: Self.dateBackFoldKey)
+        enlargerCollapsed = defaults.bool(forKey: Self.enlargerFoldKey)
     }
 }

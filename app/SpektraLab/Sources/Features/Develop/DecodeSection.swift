@@ -23,6 +23,9 @@
 //  it, as the strips fold (`ColumnSectionHeader`, kept in `DevelopPanelPrefs`), and under it the three
 //  parts in that order, each under its own name with its own ↺. The host keeps the chips.
 //
+//  **放大机** (2026-11-10): the print's Brightness, Yellow, Magenta and Pre-flash (`EnlargerGroup`), a folding row
+//  under Decode's parts, standing down where nothing is printed.
+//
 //  Scene Placement has no control any more. A frame that has one keeps it on the wire, so its picture
 //  does not change under it; the page's ↺ takes it off with the rest of the decode.
 
@@ -100,6 +103,7 @@ struct DecodeSection: View {
                     .rowEnabled(enabled(t))
                     part(t).rowEnabled(enabled(t))
                 }
+                EnlargerGroup(session: session)
             }
         }
     }

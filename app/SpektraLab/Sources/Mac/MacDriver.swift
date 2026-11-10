@@ -286,6 +286,12 @@ enum MacDriver {
                 let p = DevelopPanelPrefs.shared
                 p.filmEdgeCollapsed = false; p.dateBackCollapsed = false; p.decodeCollapsed = false
             }),
+            // 解码 › 放大机 (2026-11-10): the group's fold, its controls moved, and the page's reset.
+            ("fold.enlarger", { _ in DevelopPanelPrefs.shared.enlargerCollapsed = true }),
+            ("open.enlarger", { _ in DevelopPanelPrefs.shared.enlargerCollapsed = false }),
+            ("enlarger.set", { m in page(m) { $0.change { $0.params.printBrightnessStops = 0.5; $0.params.yFilterShift = 0.1
+                $0.params.mFilterShift = -0.05; $0.params.preflashExposure = 0.01 } } }),
+            ("enlarger.reset", { m in page(m) { s in m.resetPage(.enlarger, in: s); m.resetPage(.preflash, in: s) } }),
             ("applyfilm.off", { m in page(m) { $0.change { $0.setAppliesFilm(false) } } }),
             ("applyfilm.on", { m in page(m) { $0.change { $0.setAppliesFilm(true) } } }),
             // Edit › Adjust › 色轮 (MacColourWheel.swift): the tool open, a zone picked, values on the zones.

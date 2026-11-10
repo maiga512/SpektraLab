@@ -1959,6 +1959,28 @@
         }
       }
     },
+    "A Digital Intermediate is not printed" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デジタルインターミディエイトはプリントされません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数字中间片不经过印放"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "數位中間片不經過印放"
+          }
+        }
+      }
+    },
     "A New Version Is Available" : {
       "localizations" : {
         "ja" : {
@@ -2285,6 +2307,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開啟後，這台 Mac 上的程式（例如 AI 智慧代理）可以在 SpektraLab 開啟時透過它列出、評級、標記、輸入、沖洗和輸出你的照片；SpektraLab 未開啟時會將其開啟。它可以把照片移到圖庫的垃圾桶並放回，但從不刪除任何檔案。關閉時，所有呼叫都會被拒絕。"
+          }
+        }
+      }
+    },
+    "A scanned film is not printed" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スキャンしたフィルムはプリントされません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "扫描的胶片不经过印放"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "掃描的膠片不經過印放"
           }
         }
       }
@@ -10341,28 +10385,6 @@
         }
       }
     },
-    "Highlights & Shadows" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "明部と暗部"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "高光与阴影"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "高光與陰影"
-          }
-        }
-      }
-    },
     "Histogram" : {
       "localizations" : {
         "ja" : {
@@ -14869,6 +14891,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "關"
+          }
+        }
+      }
+    },
+    "Off with film emulation off" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィルムエミュレーションがオフのときは使えません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "胶片模拟关闭时不可用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "膠片模擬關閉時不可用"
           }
         }
       }
@@ -23640,13 +23684,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "色调"
+            "value" : "影调"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "色調"
+            "value" : "影調"
           }
         }
       }
@@ -25011,28 +25055,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "白色色階"
-          }
-        }
-      }
-    },
-    "Whites & Blacks" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "白・黒レベル"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "白色与黑色"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "白色與黑色"
           }
         }
       }

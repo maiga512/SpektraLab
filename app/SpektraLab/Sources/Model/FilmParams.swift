@@ -579,6 +579,10 @@ struct FilmParams: Codable, Equatable, Sendable {
     /// of the mid-grey exposure and the useful range is 0…0.03 of the wire's
     /// 0…1 (`output/preflash_DSC2663/report.md`). Print layer, live.
     var preflashExposure: Double = 0
+    /// The enlarger's pre-flash range a control gives: 0…0.2 of the wire's 0…1, shown as 0…1 (scaled at the control). The
+    /// owner, 2026-10-24 widened it from 1.x's 0…0.03 (the range measured "useful" on `_DSC2663`): at 0.03 the
+    /// highlights move by ~0.17 at most, too little to see on most frames.
+    static let preflashMax: Double = 0.2
     /// RFC-024. Print layer.
     var contrastMask = ContrastMaskSettings()
     /// RFC-023. Shoot layer.

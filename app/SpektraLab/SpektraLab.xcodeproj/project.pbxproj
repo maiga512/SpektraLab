@@ -518,6 +518,7 @@
 				D9A5B93EA5BF0B18DB5279E2 /* HSLPanel.swift */,
 				06932D196DB6942184FDE392 /* Layer2Picture.swift */,
 				A08555755771CFDF00A8B5BD /* Layer2Snapshots.swift */,
+				6262DEFF124D84139235BEE5 /* EnlargerGroup.swift */,
 				74DFD5E1C11C4B31AAF5BB9D /* FilmEdgeColumn.swift */,
 				CA3994324F443EDE9D71CA5F /* FlowDialogLayout.swift */,
 				0F9A1452D64CDD2461BF4B31 /* HistogramPanel.swift */,
@@ -773,6 +774,7 @@
 		610C107A887F0E653E80D32D /* PadDevelopPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PadDevelopPage.swift; sourceTree = "<group>"; };
 		617FDEB7B98A3238E31D5531 /* ThumbnailStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 524906E579F01B81BDD196E4 /* ThumbnailStore.swift */; };
 		61D8A9C89EF0F5D70FFE324A /* PresetStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42A3FA76845ADAD4052BCC5A /* PresetStore.swift */; };
+		6262DEFF124D84139235BEE5 /* EnlargerGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF579700FE81F9BD36713363 /* EnlargerGroup.swift */; };
 		627BBC9C62B0C159B656E415 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9CCD11486CB5CFFBAC839C56 /* Assets.xcassets */; };
 		62A0083B2BB74D0DA6E5EF19 /* UpdateAnnounce.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AB6B1930E0D679CE4CC62FE /* UpdateAnnounce.swift */; };
 		62CC16E730A16808B33CD794 /* LightTableTouch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightTableTouch.swift; sourceTree = "<group>"; };
@@ -1016,6 +1018,7 @@
 				640025A011B09D62BFC05B9C /* DevelopPanels.swift */,
 				123519F34A6A7E452D79A238 /* DevelopRegions.swift */,
 				C49DB28897704CD14F706651 /* DevelopWorkspace.swift */,
+				BF579700FE81F9BD36713363 /* EnlargerGroup.swift */,
 				4C7EBAD0B4F86EBFCDE1B7FD /* FilmEdgeColumn.swift */,
 				EB58C4EC6CA468A386B15371 /* FlowDialogLayout.swift */,
 				DFD5DC2E22462390BE2E041F /* HistogramPanel.swift */,
@@ -1320,6 +1323,7 @@
 		BEA270BDB4CC88A2CEADF82E /* ExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportService.swift; sourceTree = "<group>"; };
 		BECDFBC9C0BFBDED2E6EFE7C /* AppearancePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A97330053E180E9B7A67ABAC /* AppearancePage.swift */; };
 		BF0830BF20A40E3EB45F2B25 /* MacLightTableBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = E34D92693A99940D92DE2E95 /* MacLightTableBar.swift */; };
+		BF579700FE81F9BD36713363 /* EnlargerGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnlargerGroup.swift; sourceTree = "<group>"; };
 		BF5F1F49C7F32C47CDBD4B95 /* MacSettingsRecipes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSettingsRecipes.swift; sourceTree = "<group>"; };
 		BFFE3E24FACD7AE5905EFEE1 /* FilmParams.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilmParams.swift; sourceTree = "<group>"; };
 		C015BAAA3C846BD82DBAB3CE /* Release */ = {
