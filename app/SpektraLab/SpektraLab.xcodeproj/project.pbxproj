@@ -372,11 +372,11 @@
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleLightContent;
 				INFOPLIST_KEY_UIUserInterfaceStyle = Dark;
 				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks");
-				MARKETING_VERSION = 2.2.2;
+				MARKETING_VERSION = 2.3.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.spektralab.mac.local;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SPK_COMMIT = "";
-				SPK_UPDATE_FEED_URL = "https://spektralab.app/updates/mac.json";
+				SPK_UPDATE_FEED_URL = "https://raw.githubusercontent.com/maiga512/SpektraLab/main/updates/mac.json";
 				SUPPORTS_MACCATALYST = YES;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -1353,11 +1353,11 @@
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleLightContent;
 				INFOPLIST_KEY_UIUserInterfaceStyle = Dark;
 				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks");
-				MARKETING_VERSION = 2.2.2;
+				MARKETING_VERSION = 2.3.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.spektralab.mac.local;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SPK_COMMIT = "";
-				SPK_UPDATE_FEED_URL = "https://spektralab.app/updates/mac.json";
+				SPK_UPDATE_FEED_URL = "https://raw.githubusercontent.com/maiga512/SpektraLab/main/updates/mac.json";
 				SUPPORTS_MACCATALYST = YES;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;

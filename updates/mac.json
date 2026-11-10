@@ -1,0 +1,8 @@
+{
+  "version": "2.3.3",
+  "build": "1",
+  "url": "https://github.com/maiga512/SpektraLab/releases/download/spektralab-v2.3.3/SpektraLab-2.3.3-universal.zip",
+  "notes": "https://github.com/maiga512/SpektraLab/releases/tag/spektralab-v2.3.3",
+  "sha256": "74f234bdabd098a1ec2d8863e908740270bc4cb785fe5fc2ff1fe601e344115d",
+  "minimum_macos": "15.0"
+}
