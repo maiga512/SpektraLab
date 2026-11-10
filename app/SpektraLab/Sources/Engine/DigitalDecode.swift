@@ -107,5 +107,60 @@ enum DigitalDecode {
         return RenderedPixels(texture: texture, rgba16: UnsafePointer(base), size: PixelSize(width: w, height: h),
                               rowStridePixels: rowBytes / 8, keep: buffer)
     }
+
+    /// The finish path's source: **Apple's stock decode**, in ROMM's own curve.
+    ///
+    /// The engine's neutral decode (`RawExposure`) zeroes boost, tone map and gamut mapping —
+    /// "made for the film and looks flat without one" — and with Apply Film Emulation off there
+    /// is no film to supply the look (the owner, 2026-11-11: the picture read "寡淡，没有对比度"
+    /// against Apple's). So the finish path takes the pixels the film-off path always took (this
+    /// file's `image`): decoded whole at the job's long edge, then cut — the order
+    /// `FrameDecoder.decode` takes — and handed over as `DecodedFrame` for the engine to lay its
+    /// strip on and grain. The wire says `input_cctf_decoding`, so the engine takes ROMM's curve
+    /// off at the door and its maths runs on linear pixels as they do on the film path. The frame's
+    /// white balance is Apple's too (this file's `image` reads `decode`'s), which is why the finish
+    /// wire keeps the engine's own neutral.
+    static func finishSource(url: URL, isRAW: Bool, decode: DecodeSettings, longEdge: Int?,
+                             cut: Geometry?, device: MTLDevice) throws -> DecodedFrame {
+        guard var image = image(url, isRAW: isRAW, decode: decode) else {
+            throw EngineError.failed("Apple's decoder could not read \(url.lastPathComponent)")
+        }
+        let whole = image.extent.integral
+        image = image.transformed(by: .init(translationX: -whole.origin.x, y: -whole.origin.y))
+        // The whole photo at the long edge asked, as `FrameDecoder`'s `picture(…longEdge:)`.
+        let longest = max(image.extent.width, image.extent.height)
+        if let edge = longEdge, edge > 0, longest > CGFloat(edge) {
+            let s = CGFloat(edge) / longest
+            if let scale = CIFilter(name: "CILanczosScaleTransform") {
+                scale.setValue(image, forKey: kCIInputImageKey)
+                scale.setValue(s, forKey: kCIInputScaleKey)
+                scale.setValue(1, forKey: kCIInputAspectRatioKey)
+                if let out = scale.outputImage { image = out }
+            }
+        }
+        if let cut { image = HostCut.image(image, by: cut) }
+        let extent = image.extent.integral
+        let w = Int(extent.width), h = Int(extent.height)
+        guard w > 0, h > 0 else { throw EngineError.failed("the picture is empty") }
+        let bytes = w * h * 16
+        guard bytes <= device.maxBufferLength, let buffer = device.makeBuffer(length: bytes, options: .storageModeShared) else {
+            throw EngineError.resource("no \(bytes >> 20) MB buffer for the finish decode")
+        }
+        let context = CIContext(mtlDevice: device, options: [
+            .workingColorSpace: CGColorSpace(name: CGColorSpace.extendedLinearSRGB)!,
+            .workingFormat: CIFormat.RGBAh, .cacheIntermediates: false, .highQualityDownsample: true])
+        defer { context.clearCaches() }
+        let romm = CGColorSpace(name: CGColorSpace.rommrgb)!
+        let placed = image.transformed(by: .init(translationX: -extent.origin.x, y: -extent.origin.y))
+        let bands = max(1, Int((Double(w) * Double(h) / 4_000_000).rounded(.up)))
+        for b in 0..<bands {
+            autoreleasepool {
+                let r0 = h * b / bands, r1 = h * (b + 1) / bands
+                context.render(placed, toBitmap: buffer.contents() + r0 * w * 16, rowBytes: w * 16,
+                               bounds: CGRect(x: 0, y: h - r1, width: w, height: r1 - r0), format: .RGBA16, colorSpace: romm)
+            }
+        }
+        return DecodedFrame(buffer: buffer, size: PixelSize(width: w, height: h), channels: 4, how: "Core Image")
+    }
     #endif
 }

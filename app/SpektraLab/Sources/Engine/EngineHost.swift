@@ -157,7 +157,19 @@ final class EngineHost: FrameSource, @unchecked Sendable {
         }
         /// The same pixels at any size: the file, its decode, the host's cut.
         static func pixelsKey(source: URL, isRAW: Bool, decode: DecodeSettings, cut: Geometry?) -> String {
-            [source.path, isRAW ? "raw " + decode.pixelsKey : "", cut?.cutKey ?? ""].joined(separator: "|")
+            // A file's own grading taken back is part of what a non-RAW's pixels are, so it is in the
+            // key — and only there: a RAW never takes grading back, so its keys are as they were.
+            let word = isRAW ? "raw " + decode.pixelsKey
+                             : decode.pixelsKey + (decode.sceneRestore != 0 ? "|sr=\(Int(decode.sceneRestore))" : "")
+            return [source.path, word, cut?.cutKey ?? ""].joined(separator: "|")
+        }
+        /// How much of this job's file's own grading to take back before the film
+        /// (`DecodeSettings.sceneRestore`): **none** where the film is off — the picture is then the
+        /// file's own, and taking its grading back would only wash it out — and none for a RAW,
+        /// which is scene-linear to begin with. The decode does not know either; the request does.
+        var restoreAmount: Double {
+            guard !isRAW, wire["finish_only"] != .bool(true) else { return 0 }
+            return decode.sceneRestore
         }
         var pixelsKey: String { Self.pixelsKey(source: source, isRAW: isRAW, decode: decode, cut: cut) }
         var sourceKey: String {
@@ -332,7 +344,8 @@ final class EngineHost: FrameSource, @unchecked Sendable {
                 throw EngineError.resource(StripSource.givenBack)
             }
             let (frame, report) = try decoder.decode(DecodeAsk(url: r.source, isRAW: r.isRAW, settings: r.decode,
-                                                               longEdge: r.longEdge, cut: r.cut, proxy: r.proxy))
+                                                               longEdge: r.longEdge, cut: r.cut, proxy: r.proxy,
+                                                               restore: r.restoreAmount))
             if let facts = report.rawExposure { onDelivery?(.rawExposure(frame: r.frameID, facts: facts)) }
             if let event = report.proxy { onDelivery?(.proxy(frame: r.frameID, event: event)) }
             if let generation {
@@ -343,8 +356,20 @@ final class EngineHost: FrameSource, @unchecked Sendable {
             said.how = Self.recorded(report.how)
             return said
         }
+        // **The finish path's source is Apple's stock decode** (`DigitalDecode.finishSource`): the
+        // engine's neutral decode zeroes boost, tone map and gamut mapping — made for the film and
+        // flat without one — and with the film off there is no film to supply the look (the owner,
+        // 2026-11-11: the picture read "寡淡，没有对比度" against Apple's). A whole frame only: a
+        // strip's cards and a piece keep the film path's pixels, and these never enter the feed.
+        if case .bool(true)? = r.wire["finish_only"], r.piece == nil, r.strip == nil {
+            var frame = try DigitalDecode.finishSource(url: r.source, isRAW: r.isRAW, decode: r.decode,
+                                                       longEdge: r.longEdge, cut: r.cut, device: device)
+            frame.how = Self.recorded(frame.how ?? "Core Image")
+            log.info("decoded \(r.source.lastPathComponent, privacy: .public) for the finish path by \(frame.how ?? "", privacy: .public): \(frame.size.width) x \(frame.size.height)")
+            return frame
+        }
         let (frame, report) = try decoder.decode(DecodeAsk(url: r.source, isRAW: r.isRAW, settings: r.decode, longEdge: r.longEdge,
-                                                           cut: r.cut, proxy: r.proxy))
+                                                           cut: r.cut, proxy: r.proxy, restore: r.restoreAmount))
         if let facts = report.rawExposure { onDelivery?(.rawExposure(frame: r.frameID, facts: facts)) }
         if let event = report.proxy { onDelivery?(.proxy(frame: r.frameID, event: event)) }
         if let wb = report.asShot, r.decode.whiteBalance == .asShot {

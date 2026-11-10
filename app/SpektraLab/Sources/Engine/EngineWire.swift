@@ -189,12 +189,14 @@ extension FrameEdit {
         // else. The picture enters and leaves as it is (ARCHITECTURE §7).
         if !appliesFilm {
             wire["finish_only"] = .bool(true)
-            // The Decode white balance on a finished picture: a chromatic gain in
-            // the engine (`Pipeline::node_finish_white_balance`). As Shot is the
-            // identity — the file is its own reference; 6500 K is neutral.
-            let asShot = decode.whiteBalance == .asShot
-            wire["scene_wb_temperature"] = .double(asShot ? 6500 : decode.temperature)
-            wire["scene_wb_tint"] = .double(asShot ? 0 : decode.tint)
+            // The source is Apple's stock decode **in ROMM's own curve**
+            // (`DigitalDecode.finishSource`): the engine takes the curve off at the door
+            // (`input_cctf_decoding`), so its maths runs on linear pixels as they do on the
+            // film path. And Apple's decode already applied the frame's white balance — it
+            // reads `decode`'s own — so the engine's stays neutral: never sent twice.
+            wire["input_cctf_decoding"] = .bool(true)
+            wire["scene_wb_temperature"] = .double(6500)
+            wire["scene_wb_tint"] = .double(0)
         }
         if let previewLongEdge {
             wire["preview_long_edge"] = .double(Double(previewLongEdge.clamped(to: 800...8192)))

@@ -1186,6 +1186,19 @@ pipeline and drops the cached negative.
 | `scene_wb_temperature` | `camera.finish_white_balance_temperature` | float | `6500` | 1500–15000 | the Decode white balance's target temperature, on the finish path only |
 | `scene_wb_tint` | `camera.finish_white_balance_tint` | float | `0` | −150…150 | its green↔magenta, positive toward magenta |
 
+**The source is Apple's stock decode** (`DigitalDecode.finishSource`, 2026-11-11): the
+frame off the file through `CIRAWFilter` as Apple sets it — its boost, its tone map, its
+gamut mapping — because the engine's neutral decode zeroes those "for the film" and the
+film off has no film to supply the look. It is decoded whole at the job's long edge and cut
+after (the order `FrameDecoder.decode` takes), handed over in ROMM's own curve, and
+`input_cctf_decoding` is sent **true** so the engine takes the curve off at the door — its
+maths then run on linear pixels exactly as on the film path. The white balance is the
+decode's too, so `scene_wb_temperature`/`scene_wb_tint` are sent **6500/0** always: the
+engine's own gain is never applied twice. When the film comes back both fields leave the
+wire, and `FilmParams.finishRest` tells the session their rest (`finish_only` false,
+`input_cctf_decoding` false, the white balance neutral) — a delta built only from the keys
+present would never turn them off.
+
 **The white balance's direction is the RAW decoder's.** The two fields are a
 chromatic gain on the picture: the Planckian colour of `ref` (a fixed 6500 K
 this build, read back as `6500`/`0` when the edit is As Shot) divided by that
