@@ -80,6 +80,9 @@ final class CatalogSourcesStore: MacLibraryData {
     @ObservationIgnored var pairPlacing: Set<LibraryFrame.ID> = []
     /// The helper uuids of a source's pictures that have a frame, as of a frame count.
     @ObservationIgnored private var developedCache: [MacSource.ID: (frames: Int, images: [String])] = [:]
+    /// The collection's rows reduced to what the app-side filters read (shape, the export book), by
+    /// collection and the source's row count: a catalog that gained or lost pictures is read again.
+    @ObservationIgnored private var filterIndexes: [String: LibraryFilterIndex] = [:]
 
     /// `Application Support/<bundle id>/`: the sources list in `MacLibrary/`, the helper's store in `Libraries/`.
     nonisolated static var root: URL { ImportService.root }
@@ -512,6 +515,7 @@ final class CatalogSourcesStore: MacLibraryData {
         q.text = query.text
         q.ratings = query.ratings.sorted()
         q.minRating = query.minimumRating
+        q.maxRating = query.maximumRating
         q.colorTags = query.colorLabels.sorted()
         q.kinds = query.kinds.map(\.rawValue).sorted()
         q.capturedFrom = query.capturedFrom
@@ -521,8 +525,106 @@ final class CatalogSourcesStore: MacLibraryData {
         q.keywords = query.keywords.sorted()
         q.full = true
         q.checkFiles = true
-        if query.developedOnly { q.images = try await developedImages(h) }
+        // Worked on or not is the helper's own `has_edit`; both ticked is no filter.
+        switch (query.editStates.contains(.edited), query.editStates.contains(.unedited)) {
+        case (true, false): q.hasEdit = true
+        case (false, true): q.hasEdit = false
+        default: break
+        }
+        // Shape and the export book are the app's: their ids are handed over as `images[]`, and the
+        // helper still counts, sorts and pages what is left.
+        let appSide = !query.exportStates.isEmpty || !query.aspects.isEmpty || !query.pickStates.isEmpty
+        if appSide || query.developedOnly {
+            var ids: Set<String>?
+            if appSide { ids = try await appSideImages(h, s) }
+            if query.developedOnly {
+                let developed = Set(try await developedImages(h))
+                ids = ids.map { $0.intersection(developed) } ?? developed
+            }
+            q.images = Array(ids ?? [])
+        }
         return q
+    }
+
+    /// The pictures this collection holds that the app-side filters keep: its rows read once
+    /// (`filterIndex`), narrowed by shape and by whether the export book lists them.
+    private func appSideImages(_ h: String, _ s: MacSource) async throws -> Set<String> {
+        let index = try await filterIndex(h, s)
+        var ids = index.ids(aspects: query.aspects)
+        if query.exportStates.count == 1 {
+            ids = ids.intersection(index.ids(exported: query.exportStates.contains(.exported),
+                                             written: ExportLedger.shared.keys))
+        }
+        if !query.pickStates.isEmpty {
+            ids = ids.intersection(index.ids(flags: query.pickStates, marked: PickFlags.shared.keys))
+        }
+        return ids
+    }
+
+    /// The collection's rows, reduced to a path and a shape each: read whole (the helper pages
+    /// `images.list`), and kept until the collection, the source's row count or the app leaves it.
+    private func filterIndex(_ h: String, _ s: MacSource) async throws -> LibraryFilterIndex {
+        let key = "\(h)|\(selectedCollectionID ?? "all")|\(query.includeSubfolders)|\(s.imageCount ?? 0)"
+        if let hit = filterIndexes[key] { return hit }
+        var q = LibraryQuery()
+        let selected = tree.find(selectedCollectionID)
+        q.collection = selected?.kind == .allImages ? nil : selectedCollectionID
+        q.recursive = query.includeSubfolders
+        q.sort = .captured
+        q.full = true
+        q.checkFiles = false
+        var index = LibraryFilterIndex()
+        var offset = 0
+        while true {
+            let page = try await client.images(h, q, offset: offset, limit: pageSize)
+            for row in page.images {
+                let size = row.width.flatMap { w in row.height.map { PixelSize(width: w, height: $0) } }
+                index.rows[row.uuid] = .init(pathKey: keyed(row.url.path), aspect: MacAspect.of(size))
+            }
+            offset += page.images.count
+            if page.images.isEmpty || offset >= page.total { break }
+        }
+        filterIndexes[key] = index
+        return index
+    }
+
+    /// The rating and colour label of these files, as the library holds them: what an export writes
+    /// into its XMP (`ExportMark`), so Lightroom, Capture One and Bridge read it back.
+    func marks(forPaths paths: [URL]) async -> [String: ExportMark] {
+        guard let s = selectedSource, s.isHelperBacked, let h = try? await handle(s), !paths.isEmpty else { return [:] }
+        var out: [String: ExportMark] = [:]
+        for chunk in stride(from: 0, to: paths.count, by: 500) {
+            let slice = Array(paths[chunk..<min(chunk + 500, paths.count)])
+            guard let found = try? await client.lookup(h, paths: slice) else { continue }
+            let ids = found.results.compactMap { $0.found ? $0.match?.image : nil }
+            guard !ids.isEmpty else { continue }
+            var q = LibraryQuery()
+            q.images = ids
+            q.full = true
+            q.checkFiles = false
+            guard let page = try? await client.images(h, q, offset: 0, limit: min(1000, ids.count)) else { continue }
+            for row in page.images {
+                let rating = row.variants.first?.rating ?? row.rating
+                let tag = row.variants.first?.colorTag ?? row.colorTag
+                let label = tag.flatMap(MacColorLabel.init(rawValue:)).flatMap(Self.xmpLabel)
+                out[Self.key(row.url.path)] = ExportMark(rating: rating, label: label)
+            }
+        }
+        return out
+    }
+
+    /// The XMP label's word for a colour tag: what Lightroom and Capture One show.
+    nonisolated static func xmpLabel(_ c: MacColorLabel) -> String? {
+        switch c {
+        case .red: "Red"
+        case .orange: "Orange"
+        case .yellow: "Yellow"
+        case .green: "Green"
+        case .blue: "Blue"
+        case .pink: "Pink"
+        case .purple: "Purple"
+        case .unlabelled: nil
+        }
     }
 
     /// The helper's uuids of the pictures in this library SpektraLab has a frame of: its paths looked up.
@@ -571,6 +673,18 @@ final class CatalogSourcesStore: MacLibraryData {
         out.lenses = f.lens.map { .init(value: $0.value.string, count: $0.count) }
         out.keywords = f.keyword.compactMap { c in c.value.string.map { .init(value: $0, count: c.count) } }
         out.undescribed = f.undescribed
+        out.edited = f.edited.yes
+        out.unedited = f.edited.no
+        // The app-side two, counted over the scope the same way: a row's shape, the export book.
+        if let index = try? await filterIndex(h, s) {
+            let flags = index.flagCounts(marked: PickFlags.shared.keys)
+            out.picked = flags.picked
+            out.rejected = flags.rejected
+            let exports = index.exportCounts(written: ExportLedger.shared.keys)
+            out.exported = exports.exported
+            out.notExported = exports.notExported
+            out.aspects = index.aspectCounts().map { .init(value: $0.0.rawValue, count: $0.1) }
+        }
         // "Developed" is the app's knowledge: its frames among this scope, counted by the helper.
         var dq = base
         dq.images = (try? await developedImages(h)) ?? []
@@ -870,6 +984,8 @@ final class CatalogSourcesStore: MacLibraryData {
                     }.value
                     let n = try await self.client.describe(h, items)
                     if n == 0 { break }
+                    // The stars the files carry, on the rows just described (a folder kept in step).
+                    await self.applyMarks(items.map { ($0.image, $0.rating, $0.colorTag) }, handle: h)
                     done += n
                 }
             } catch {
@@ -1288,13 +1404,55 @@ extension CatalogSourcesStore {
         }
         let r = try await client.add(h, items, copy: copyIntoLibrary, collection: album, recentImport: album == nil)
         var out = MacImportChunk(added: r.added, album: album ?? r.recentImport)
+        var marked: [(image: String, rating: Int?, colorTag: Int?)] = []
+        var headers: [String: LibraryDescription] = [:]
+        for f in files { if let d = f.header { headers[Self.key(f.url.path)] = d } }
         for item in r.results {
             let path = item.path ?? ""
             if let e = item.error { out.failed[path] = e }
             else if item.existing == true { out.existing += 1 }
-            else if let image = item.image { out.images[path] = image }
+            else if let image = item.image {
+                out.images[path] = image
+                // The file's own stars (a camera's, Lightroom's, Capture One's): the add takes no
+                // rating, so they are set on the rows it made. A row that already existed keeps its own.
+                if let d = headers[Self.key(path)] {
+                    marked.append((image, d.rating, d.colorTag))
+                }
+            }
         }
+        await applyMarks(marked, handle: h)
         return out
+    }
+
+    /// The stars these files carry, read again and set on their rows: for a library imported before
+    /// the app read them (2026-11-09). Only a row with no stars of its own takes the file's; nothing is
+    /// lowered, and a file with none changes nothing. Returns how many rows were given one.
+    @discardableResult
+    func readMarks(from images: [MacImage]) async -> Int {
+        guard let s = selectedSource, s.isHelperBacked, let h = try? await handle(s) else { return 0 }
+        var marked: [(image: String, rating: Int?, colorTag: Int?)] = []
+        for image in images where image.rating == 0 && image.colorLabel == nil {
+            let d = MacHeaders.read(image.url)
+            if (d.rating ?? 0) > 0 || d.colorTag != nil {
+                marked.append((image.id.image, d.rating, d.colorTag))
+            }
+        }
+        await applyMarks(marked, handle: h)
+        if !marked.isEmpty { await reload(keepingRows: true) }
+        return marked.count
+    }
+
+    /// The stars a file carries, set on the rows it made: one `meta.set` a value, not one a picture.
+    private func applyMarks(_ marked: [(image: String, rating: Int?, colorTag: Int?)], handle h: String) async {
+        guard !marked.isEmpty else { return }
+        var ratings: [Int: [String]] = [:]
+        var tags: [Int: [String]] = [:]
+        for m in marked {
+            if let r = m.rating, r > 0 { ratings[r, default: []].append(m.image) }
+            if let t = m.colorTag { tags[t, default: []].append(m.image) }
+        }
+        for (r, ids) in ratings { try? await client.setMetaImages(h, images: ids, rating: .some(r)) }
+        for (t, ids) in tags { try? await client.setMetaImages(h, images: ids, colorTag: .some(t)) }
     }
 
     /// The library shows what arrived: the destination selected (its tree read again if it already was)
@@ -1456,6 +1614,11 @@ enum MacHeaders {
             d.aperture = (exif[kCGImagePropertyExifFNumber] as? NSNumber)?.doubleValue
             d.shutter = (exif[kCGImagePropertyExifExposureTime] as? NSNumber)?.doubleValue
             d.focalLength = (exif[kCGImagePropertyExifFocalLength] as? NSNumber)?.doubleValue
+            // The stars a camera or another program put in the file (2026-11-09: a camera's rating
+            // reached Lightroom and not this app): its own XMP packet, the `.xmp` beside it, or IPTC's.
+            let mark = Self.mark(source, url: url, props: props)
+            d.rating = mark.rating
+            d.colorTag = mark.colorTag
             let type = (CGImageSourceGetType(source) as String?).flatMap { UTType($0) } ?? UTType(filenameExtension: url.pathExtension)
             if type?.conforms(to: .rawImage) != true,
                var w = (props[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue,
@@ -1468,6 +1631,69 @@ enum MacHeaders {
         return readable ? d : nil
     }
 }
+extension MacHeaders {
+    /// What the file itself says of its stars: `xmp:Rating` and `xmp:Label` (Lightroom writes both),
+    /// the sidecar `<photo>.xmp` where the file's own packet has none, and IPTC's star rating.
+    /// `rating` is 0…5; `colorTag` is the library's own number for the label word.
+    nonisolated static func mark(_ source: CGImageSource, url: URL, props: [CFString: Any])
+        -> (rating: Int?, colorTag: Int?) {
+        var rating: Int?
+        var label: String?
+        if let meta = CGImageSourceCopyMetadataAtIndex(source, 0, nil) {
+            if let s = CGImageMetadataCopyStringValueWithPath(meta, nil, "xmp:Rating" as CFString) as String? {
+                rating = Int(s.trimmingCharacters(in: .whitespaces))
+            }
+            if let s = CGImageMetadataCopyStringValueWithPath(meta, nil, "xmp:Label" as CFString) as String? {
+                label = s
+            }
+        }
+        if rating == nil || label == nil {
+            let side = url.deletingPathExtension().appendingPathExtension("xmp")
+            if let text = try? String(contentsOf: side, encoding: .utf8) {
+                if rating == nil {
+                    rating = firstMatch(#"xmp:Rating\s*=\s*"(-?\d+)""#, text)
+                        .flatMap(Int.init)
+                        ?? firstMatch(#"<xmp:Rating>\s*(-?\d+)\s*</xmp:Rating>"#, text).flatMap(Int.init)
+                }
+                if label == nil {
+                    label = firstMatch(#"xmp:Label\s*=\s*"([^"]*)""#, text)
+                        ?? firstMatch(#"<xmp:Label>\s*([^<]*?)\s*</xmp:Label>"#, text)
+                }
+            }
+        }
+        // A camera's own EXIF stars, which ImageIO does not expose (`EXIFRating`).
+        if rating == nil { rating = EXIFRating.read(url) }
+        if rating == nil, let iptc = props[kCGImagePropertyIPTCDictionary] as? [CFString: Any],
+           let star = (iptc[kCGImagePropertyIPTCStarRating] as? NSNumber)?.intValue, (1...5).contains(star) {
+            rating = star
+        }
+        let clamped = rating.map { min(5, max(0, $0)) }
+        return (clamped, label.flatMap(colorTag))
+    }
+
+    /// "Red" … "Purple" as the library numbers them (0 is no label, and is not written).
+    nonisolated static func colorTag(_ word: String) -> Int? {
+        switch word.trimmingCharacters(in: .whitespaces).lowercased() {
+        case "red": 1
+        case "orange": 2
+        case "yellow": 3
+        case "green": 4
+        case "blue": 5
+        case "pink": 6
+        case "purple": 7
+        default: nil
+        }
+    }
+
+    private nonisolated static func firstMatch(_ pattern: String, _ text: String) -> String? {
+        guard let re = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let ns = text as NSString
+        guard let m = re.firstMatch(in: text, range: NSRange(location: 0, length: ns.length)),
+              m.numberOfRanges > 1 else { return nil }
+        return ns.substring(with: m.range(at: 1))
+    }
+}
+
 /// The frames the Mac library hands the Light Table, laid on it once when its page opens
 /// (`LightTablePane.layCarried`).
 @MainActor

@@ -710,6 +710,35 @@ bool Pipeline::overscan_layout(uint32_t frame_w, uint32_t frame_h, std::string& 
     light_weights(*colour_, *blob_, film_sensitivity_edge_, ref, 2800.0, false, front, L.fog_rgb);
     light_weights(*colour_, *blob_, film_sensitivity_edge_, ref, 2700.0, true, rear, L.date_rgb);
     light_weights(*colour_, *blob_, film_sensitivity_edge_, ref, 4500.0, false, edge_t, L.edge_rgb);
+    // The lettering's ink (API-SPEC §13, `overscan_edge_color`): "stock" is this film's own edge
+    // printer as measured — 4500 K through the stock's sensitivity — and a named colour replaces the
+    // weights, held to the same print strength (equal luminance) so a red mark prints no brighter
+    // than the measured one. `group_for` below carries whatever is here into the drawing.
+    {
+        const std::string& ink = params_.film_render.overscan.edge_color;
+        static const double yellow[3] = {1.00, 0.78, 0.10};
+        static const double red[3]    = {1.00, 0.28, 0.03};   // 橙红: orange, not朱红 (the owner, 2026-11-10)
+        static const double green[3]  = {0.04, 1.00, 0.01};   // 荧光绿: the neon green of a test strip
+        static const double blue[3]   = {0.05, 0.35, 1.00};   // 亮蓝: bright and saturated
+        const double* chosen = ink == "yellow" ? yellow : ink == "red" ? red
+                            : ink == "green" ? green : ink == "blue" ? blue : nullptr;
+        if (chosen) {
+            const double luma = 0.2126 * L.edge_rgb[0] + 0.7152 * L.edge_rgb[1] + 0.0722 * L.edge_rgb[2];
+            const double cy = 0.2126 * chosen[0] + 0.7152 * chosen[1] + 0.0722 * chosen[2];
+            // Held to the stock's print luminance, with the pair the owner asked for (2026-11-10):
+            // the green prints brighter — it must read fluorescent — and the blue a step darker, so
+            // it reads as a deep ink rather than a royal blue.
+            // Above the stock's own luminance: the named inks are chosen for how they *look* on
+            // the rebate, and at the hold alone they printed dark (the owner, 2026-11-10: "红色像朱红…
+            // 并且还亮一点", "荧光绿…饱和度比较高", "亮一点的蓝"). These are tuned against a rendered
+            // strip (`tests/finish_checks`' render), not derived.
+            double k = cy > 1e-6 ? luma / cy : 1.0;
+            if (ink == "red") k *= 6.5;
+            if (ink == "green") k *= 9.0;
+            if (ink == "blue") k *= 6.5;
+            for (int i = 0; i < 3; ++i) L.edge_rgb[i] = chosen[i] * k;
+        }
+    }
 
     // --- the hole: the cmy that cancels this film's base (least squares) ----
     {
@@ -751,6 +780,10 @@ bool Pipeline::overscan_layout(uint32_t frame_w, uint32_t frame_h, std::string& 
     {
         Rng rl(stream(frm ^ (cam << 32), kFrame, 3));
         for (double& c : L.light_rgb) c = L.holes_light ? 1.0 : 0.0;
+        // The finish path has no scan and no base to light: its rebate is a border on a finished
+        // picture, and the scan's light there came out as a brown glow along the lettering's side
+        // (the owner, 2026-11-10). Black, as the print's rebate is.
+        if (params_.io.finish_only) { for (double& c : L.light_rgb) c = 0.0; L.holes_light = false; }
         L.light_fall = 0.0;
         L.light_dir = 0.0;
         L.perf_seed = uint32_t(rl.next() & 0xFFFFFFu);
@@ -785,6 +818,25 @@ bool Pipeline::overscan_layout(uint32_t frame_w, uint32_t frame_h, std::string& 
             if (colour_->matrix_XYZ_to_RGB(params_.io.output_color_space, vxy, "CAT02", m, err))
                 for (int r = 0; r < 3; ++r)
                     L.base_rgb[r] = std::clamp(m.m[r][0] * xyz[0] + m.m[r][1] * xyz[1] + m.m[r][2] * xyz[2], 0.0, 1.0);
+        }
+        // **The finish path's rebate is black.** With no film and no paper the strip is a border drawn
+        // on a finished picture, not film base through a print: the base's own orange belongs to the
+        // negative, and left here it read as light leaking in under the edge (the owner, 2026-11-10:
+        // "关闭胶片和相纸…边框像有泛光"). The film chain is untouched — its base is printed, and is black.
+        if (params_.io.finish_only) {
+            L.base_rgb[0] = L.base_rgb[1] = L.base_rgb[2] = 0.0;
+            // The wall's own glow and scatter are the scan's view of the punched base: a filmed
+            // gate's edge lifts for 2-6 % over 0.02-0.035 mm. On a finished picture's border there
+            // is no base to punch, and that lift read as light leaking in along the gate's top and
+            // bottom (the owner, 2026-11-10).
+            L.wall_glow = 0.0;
+            L.wall_scatter = 0.0;
+            L.light_fall = 0.0;
+            // **Edge fog is a film's, and there is no film.** It is a warm exposure decaying inward
+            // from each long edge — precisely the band with the maker's lettering, and precisely
+            // what read as light leaking in along that side (the owner, 2026-11-10). The film path
+            // keeps it: there it fogs the emulsion, as film does.
+            L.fog_amp = 0.0;
         }
     }
 

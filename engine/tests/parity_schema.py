@@ -208,6 +208,10 @@ NATIVE_ONLY = {
         "path": "film_render.overscan.edge_text", "type": "str", "layer": "shoot",
         "default": '', "live": False, "range": None,
     },
+    "overscan_edge_color": {
+        "path": "film_render.overscan.edge_color", "type": "str", "layer": "shoot",
+        "default": 'stock', "live": False, "range": None,
+    },
     "overscan_f_number": {
         "path": "film_render.overscan.f_number", "type": "float", "layer": "shoot",
         "default": 0.0, "live": False, "range": [0.0, 64.0],
@@ -336,6 +340,24 @@ NATIVE_ONLY = {
     "scene_curve": {
         "path": "camera.scene_curve", "type": "str", "layer": "shoot",
         "default": '', "live": False, "range": None,
+    },
+    # The finish path: no film and no paper, only grain, the strip and the
+    # date. Native only, and SHOOT: a different graph, not the same one with
+    # different numbers, so it rebuilds the pipeline and drops the negative.
+    "finish_only": {
+        "path": "io.finish_only", "type": "bool", "layer": "shoot",
+        "default": False, "live": False, "range": None,
+    },
+    # The finish path's white balance: a chromatic gain on a finished picture,
+    # in the RAW decoder's direction (measured against CIRAWFilter on a CR3,
+    # 2026-11-10: low temperature = cool picture). SHOOT, not live.
+    "scene_wb_temperature": {
+        "path": "camera.finish_white_balance_temperature", "type": "float", "layer": "shoot",
+        "default": 6500.0, "live": False, "range": [1500.0, 15000.0],
+    },
+    "scene_wb_tint": {
+        "path": "camera.finish_white_balance_tint", "type": "float", "layer": "shoot",
+        "default": 0.0, "live": False, "range": [-150.0, 150.0],
     },
 }
 

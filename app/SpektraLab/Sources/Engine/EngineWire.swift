@@ -184,6 +184,18 @@ extension FrameEdit {
         var wire = StockCatalog.shared.wire(for: params)
         for field in engineGeometry.wire { wire[field.name] = field.value }
         wire["product_defaults"] = .bool(true)
+        // The finish path: the film and the paper's colour are off, and the
+        // engine still renders — grain, the strip and the date, and nothing
+        // else. The picture enters and leaves as it is (ARCHITECTURE §7).
+        if !appliesFilm {
+            wire["finish_only"] = .bool(true)
+            // The Decode white balance on a finished picture: a chromatic gain in
+            // the engine (`Pipeline::node_finish_white_balance`). As Shot is the
+            // identity — the file is its own reference; 6500 K is neutral.
+            let asShot = decode.whiteBalance == .asShot
+            wire["scene_wb_temperature"] = .double(asShot ? 6500 : decode.temperature)
+            wire["scene_wb_tint"] = .double(asShot ? 0 : decode.tint)
+        }
         if let previewLongEdge {
             wire["preview_long_edge"] = .double(Double(previewLongEdge.clamped(to: 800...8192)))
         }

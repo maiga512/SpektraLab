@@ -59,11 +59,22 @@ final class Layer2Live {
         wantsHistogram = !histogramHolders.isEmpty
     }
 
+    /// One line of what the pass is doing, for `--hud` (the owner's debugging, 2026-11-10): whether
+    /// it has a picture, the size it was told, whether an image has landed, and its last pass.
+    var hudText: String {
+        let pass = lastPass.map { String(format: "%.1f ms", $0.gpuMilliseconds) } ?? "—"
+        let a = adjustments
+        return "L2 picture=\(picture == nil ? "nil" : "ok") size=\(displayPixel.map(String.init) ?? "nil") "
+            + "shown=\(shown == nil ? "nil" : "ok") pass=\(pass) active=\(a.isActive) "
+            + "exp=\(String(format: "%.1f", a.exposure)) con=\(String(format: "%.0f", a.contrast)) "
+            + "bri=\(String(format: "%.0f", a.brightness)) curve=\(a.curves.isIdentity ? "id" : "on")"
+    }
+
     /// The picture the pass reads: the page's develop. Nil where there is none
     /// it can adjust as the page shows it (`picture(for:)`).
     private(set) var picture: PictureRef?
     @ObservationIgnored private(set) var adjustments = Adjustments()
-    @ObservationIgnored private var displayPixel: Int?
+    private(set) var displayPixel: Int?
     @ObservationIgnored private var inFlight = false
     @ObservationIgnored private var again = false
     @ObservationIgnored private let work = Layer2Work()

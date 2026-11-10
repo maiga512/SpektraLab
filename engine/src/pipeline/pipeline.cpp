@@ -1625,6 +1625,101 @@ bool Pipeline::update_bw_references(std::string& error) {
     return true;
 }
 
+// --- the finish path's density axis -----------------------------------------
+//
+// The frame is a finished picture, so there is no characteristic curve to run
+// and no paper to print it on. Grain, though, is a density phenomenon: the
+// sub-layer model reads its stock's normalised curves, and its amplitude is
+// the density. So the picture is read onto that stock's density axis and back:
+//
+//     n   = -log10(max(rgb, 1e-9)) / dmax
+//     rgb = 10^(-n * dmax)
+//
+// Both pointwise, both with the stock's own `density_max`, and exact inverses
+// of one another in real arithmetic -- with grain off the pair returns the
+// frame it was given. `n` is not clamped: a pixel past the top of the stock's
+// curve looks up the curve's end, exactly as a negative held at dmax does, and
+// the inverse still gives the pixel back.
+
+// The finish path's white balance: a chromatic gain, because a finished picture
+// has no sensor white point to move. The Planckian colour of the chosen
+// temperature over that of 6500 K, green↔magenta by `tint`, scaled so a
+// luminance-neutral grey keeps its luminance. 6500 K and 0 tint are the
+// identity, to the bit (the node is not dispatched).
+namespace {
+void planckian_rgb(double kelvin, double rgb[3]) {
+    const double t = std::clamp(kelvin, 1000.0, 40000.0) / 100.0;
+    double r, g, b;
+    if (t <= 66.0) {
+        r = 255.0;
+        g = 99.4708025861 * std::log(t) - 161.1195681661;
+        b = t <= 19.0 ? 0.0 : 138.5177312231 * std::log(t - 10.0) - 305.0447927307;
+    } else {
+        r = 329.698727446 * std::pow(t - 60.0, -0.1332047592);
+        g = 288.1221695283 * std::pow(t - 60.0, -0.0755148492);
+        b = 255.0;
+    }
+    rgb[0] = std::clamp(r, 0.0, 255.0);
+    rgb[1] = std::clamp(g, 0.0, 255.0);
+    rgb[2] = std::clamp(b, 0.0, 255.0);
+}
+}  // namespace
+
+bool Pipeline::node_finish_white_balance(const Image& in, Image& out, std::string& error) {
+    const double kelvin = params_.camera.finish_white_balance_temperature;
+    const double tint = params_.camera.finish_white_balance_tint;
+    if (std::abs(kelvin - 6500.0) < 0.5 && std::abs(tint) < 0.5) { out = in; return true; }
+    Timer t(this, "finishing.white_balance");
+    // **The direction is the RAW decoder's**, measured against
+    // `CIRAWFilter.neutralTemperature` on a real CR3 (2026-11-10): at 2500 K
+    // Apple's decode comes out blue (RGB 37/53/126), at 9000 K warm (119/78/49)
+    // — and the ruler's own gradient is drawn the same way (blue at 2000 K,
+    // orange at 10000 K). So a *low* temperature makes the picture cool: the
+    // illuminant's own colour divided *out*, the correction Apple applies. The
+    // first version of this node had the ratio the other way round, which made
+    // dragging right cool the image — found by the owner's slider, 2026-11-10.
+    double here[3], ref[3];
+    planckian_rgb(kelvin, here);
+    planckian_rgb(6500.0, ref);
+    double s[3];
+    for (int c = 0; c < 3; ++c) s[c] = (ref[c] > 1e-6 && here[c] > 1e-6) ? ref[c] / here[c] : 1.0;
+    // Tint the same way round: Apple at +100 comes out magenta (G 40, B 133),
+    // at -100 green — as the gradient under the ruler is drawn.
+    s[1] *= std::max(0.25, 1.0 - tint / 400.0);
+    const double y = 0.2126 * s[0] + 0.7152 * s[1] + 0.0722 * s[2];
+    if (y > 1e-9) for (double& v : s) v /= y;
+    const double t0[3] = {0.0, 0.0, 0.0};
+    return blur_.affine(in, s, t0, out, error);
+}
+
+bool Pipeline::node_finish_to_density(const Image& in, Image& out, std::string& error) {
+    Timer t(this, "finishing.density.in");
+    const float dmax[3] = {float(params_.film.density_max[0]), float(params_.film.density_max[1]),
+                           float(params_.film.density_max[2])};
+    gpu::BufferRef dmax_buf = gpu_->upload(dmax, sizeof dmax, error);
+    if (!dmax_buf) return false;
+    if (!alloc_like(in, out, error)) return false;
+    const uint32_t meta[1] = {uint32_t(in.pixels())};
+    return gpu_->dispatch("spk_finish_to_density",
+                          {gpu::Arg::buf(in.buf), gpu::Arg::buf(dmax_buf),
+                           gpu::Arg::inline_bytes(meta, 1), gpu::Arg::buf(out.buf)},
+                          in.pixels(), error);
+}
+
+bool Pipeline::node_finish_from_density(const Image& in, Image& out, std::string& error) {
+    Timer t(this, "finishing.density.out");
+    const float dmax[3] = {float(params_.film.density_max[0]), float(params_.film.density_max[1]),
+                           float(params_.film.density_max[2])};
+    gpu::BufferRef dmax_buf = gpu_->upload(dmax, sizeof dmax, error);
+    if (!dmax_buf) return false;
+    if (!alloc_like(in, out, error)) return false;
+    const uint32_t meta[1] = {uint32_t(in.pixels())};
+    return gpu_->dispatch("spk_finish_from_density",
+                          {gpu::Arg::buf(in.buf), gpu::Arg::buf(dmax_buf),
+                           gpu::Arg::inline_bytes(meta, 1), gpu::Arg::buf(out.buf)},
+                          in.pixels(), error);
+}
+
 bool Pipeline::node_enlarger_spectral(const Image& in, Image& out, std::string& error) {
     Timer t(this, "printing.expose.enlarger_spectral");
     return spectral(in, print_chd_, print_base_, print_ixs_, print_gain_, print_offset_,
@@ -2280,6 +2375,99 @@ bool Pipeline::run_film(const Image& in, Image& out, Progress* progress, std::st
     Image cur;
     if (!film_prefix(in, FrameShape{in.h, in.w}, cur, error)) return false;
     if (!film_segment(cur, out, error)) return false;
+    progress_ = nullptr;
+    return true;
+}
+
+// The finish path (`io.finish_only`): the frame is the finished picture.
+//
+// No film and no paper: the exposure, the characteristic curves, the couplers,
+// the enlarger, the paper and the scan are all absent, because there is
+// nothing to expose and nothing to print. What remains is what a finished
+// photograph can still honestly carry -- the strip it is laid on, the grain of
+// a stock whose particles are measured, and the date.
+//
+// The colour is the picture's own. The frame enters in the working space and
+// leaves in it, and the only node between the two that can change a value is
+// the grain; with the grain off the path is the identity, to float32. That is
+// the property `tests/finish_checks.py` holds it to, and it is what makes the
+// switch in the app safe: turning film and paper off cannot re-grade a picture
+// that was already graded elsewhere.
+bool Pipeline::run_finish(const Image& in, Image& out, Progress* progress, std::string& error) {
+    struct Cleanup { Image& image; Progress*& progress; ~Cleanup() { image = Image{}; progress = nullptr; } }
+        cleanup{factory_exposure_, progress_};
+    if (!built_) { error = "pipeline was not built"; return false; }
+    progress_ = progress;
+    // The nodes this path fires: the three of the prefix, maybe the strip, the
+    // density pair, the grain, and the output's curve.
+    const int nodes = 6 + (params_.film_render.grain.active ? 1 : 0)
+                    + (scene_curve_wanted() ? 1 : 0)
+                    + (params_.camera.exposure_compensation_ev != 0.0 ? 1 : 0);
+    if (progress_) { progress_->total_nodes = nodes; progress_->fired = 0; }
+    last_ae_ev_.reset();
+
+    Image cur, next;
+    SPK_NODE(node_input_cast(in, cur, error));
+    SPK_NODE(node_decode_input(cur, next, error)); cur = next;
+    SPK_NODE(node_geometry(cur, next, error)); cur = next;
+
+    // The film's pitch, as `film_prefix` fixes it: every grain size is measured
+    // through it, so a strip's gate -- 36 mm of 135, 56 mm of 6x9 -- is what
+    // sizes the grain, and a frame with no strip falls back to the camera's
+    // format. `set_source_long_edge` has already been called by the session.
+    {
+        Timer t(this, "preprocess.crop_rescale");
+        if (source_long_edge_ == 0) source_long_edge_ = std::max(cur.h, cur.w);
+        const double long_mm = overscan_wanted() ? overscan_gate_long_mm() : params_.camera.film_format_mm;
+        pixel_size_um_ = long_mm * 1000.0 / double(source_long_edge_);
+    }
+    // One realisation per render, drawn exactly as `film_prefix` draws it.
+    film_seed_ = (params_.film_render.grain.active && params_.settings.grain_sampler != "exact")
+               ? fresh_seed() : 0x5EEDu;
+
+    // **Decode, without a film to decode for.** Film Exposure and the Decode
+    // curve sit before the film on the film path, and a finished picture has no
+    // film to sit before — but a person still wants them, and both are plain
+    // scene operations that mean the same thing on any picture: `scene_curve`
+    // is a tone curve about the metered mid-grey, `exposure` a gain of
+    // `2^EV`. They are applied here, before the density axis, in the order the
+    // film path applies them. White balance is not among them: a file already
+    // exposed has no sensor white point to move (it is the app's decode, and a
+    // finished picture's colour is its own).
+    SPK_NODE(node_finish_white_balance(cur, next, error)); cur = next;
+    if (scene_curve_wanted()) { SPK_NODE(node_scene_curve(cur, next, error)); cur = next; }
+    if (params_.camera.exposure_compensation_ev != 0.0) {
+        SPK_NODE(node_exposure(cur, next, error)); cur = next;
+    }
+
+    // The strip and the date: `node_overscan` draws either, and is the identity
+    // with neither. Called here for the same reason the film chain calls it.
+    SPK_NODE(node_overscan(cur, next, error)); cur = next;
+
+    // **The factory's lettering is its own exposure.** `node_overscan` leaves it in
+    // `factory_exposure_` for the film chain's blur stage to add (`film_blurs`), where the
+    // lettering is an exposure *in the emulsion* and halates into the rebate around it. The
+    // finish path has no emulsion to scatter in: there the strip is a border drawn on a
+    // finished picture, so the lettering is laid down crisp. It used to be halated here to
+    // look "the same as the film path", and that glow was read as light leaking in under
+    // the edge, top and bottom (the owner, 2026-11-10).
+    if (factory_exposure_.buf) {
+        // Laid down crisp, and at the film path's own 2 % back-return: the plane is an exposure
+        // *meant for an emulsion*, where 2 % is what comes back through the base. Added whole it
+        // lifted the whole lettering band of the rebate, brightest where the maker's mark is —
+        // read as light leaking in along the side with the words (the owner, 2026-11-10).
+        const double one[3] = {1, 1, 1};
+        const double faint[3] = {0.02, 0.02, 0.02};
+        if (!blur_.lincomb(cur, factory_exposure_, one, faint, next, error)) return false;
+        cur = next;
+    }
+    factory_exposure_ = Image{};
+    SPK_NODE(node_finish_to_density(cur, next, error)); cur = next;
+    if (params_.film_render.grain.active) { SPK_NODE(node_grain(cur, next, error)); cur = next; }
+    SPK_NODE(node_finish_from_density(cur, next, error)); cur = next;
+    SPK_NODE(node_cctf(cur, next, error)); cur = next;
+
+    out = cur;
     progress_ = nullptr;
     return true;
 }

@@ -67,7 +67,12 @@ struct DecodeSection: View {
     }
 
     private var appliesFilm: Bool { session.edit.appliesFilm }
-    private func enabled(_ tool: DecodeTool) -> Bool { appliesFilm || !tool.isFilms }
+    /// **Live with the film off too** (2026-11-10): the finish path runs Film
+    /// Exposure and the Decode curve on the finished picture (`Pipeline::run_finish`),
+    /// so a JPEG graded elsewhere can still be lifted, curved and stamped. The
+    /// white balance stays the file's decode, which is why a non-RAW frame still
+    /// stands down inside `ScenePanel`, with its line saying so.
+    private func enabled(_ tool: DecodeTool) -> Bool { true }
 
     @ViewBuilder var body: some View {
         if stacked { stackedBody } else { chipsBody }
@@ -129,7 +134,8 @@ struct DecodeSection: View {
         switch tool {
         case .exposure:
             EditSlider(title: L("Film Exposure"), value: session.binding(\.params.exposureCompensationEV),
-                       range: -8...8, text: { Fmt.signed($0) + " EV" }, detentAtRest: true, editing: session.editing(.shoot))
+                       range: -8...8, rest: session.originalExposure, text: { Fmt.signed($0) + " EV" }, detentAtRest: true,
+                           editing: session.editing(.shoot))
                 .padding(.horizontal, 16)
                 .frame(height: Self.exposureHeight, alignment: .top)
         case .whiteBalance:

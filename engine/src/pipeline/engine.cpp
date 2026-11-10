@@ -1285,15 +1285,23 @@ spk_status render_tier(spk_session* session, const char* tier_name, bool use_rep
     bool ok = tier_image(session, *tier, tier_source, error);
     if (ok) session->pipeline->set_source_long_edge(std::max(tier_source.h, tier_source.w),
                                                   std::max(session->source.h, session->source.w));
-    if (ok) ok = negative_for(session, *tier, &session->progress, negative, error);
+    // **The finish path** (`io.finish_only`): the frame is the finished
+    // picture. No negative is made, so none is cached or reprinted; the one
+    // render is RGB in, RGB out (`Pipeline::run_finish`).
+    const bool finish_only = session->params.io.finish_only;
+    if (ok && finish_only) {
+        ok = session->pipeline->run_finish(tier_source, rgb, &session->progress, error);
+    } else if (ok) {
+        ok = negative_for(session, *tier, &session->progress, negative, error);
+    }
     // After the negative, which a film run lays out for itself: this is for
     // the cached one, whose layout the pipeline may never have made (a
     // print-layer rebuild) or may have replaced with another tier's.
-    if (ok) {
+    if (ok && !finish_only) {
         const spk_session::TierState& state = session->tiers[tier->name];
         ok = session->pipeline->set_overscan_frame(state.overscan_frame_w, state.overscan_frame_h, error);
     }
-    if (ok) ok = run_print_for(session, negative, rgb, &session->progress, error);
+    if (ok && !finish_only) ok = run_print_for(session, negative, rgb, &session->progress, error);
     if (ok) ok = materialise(session, rgb, out, error);
     gpu->end_frame();
 

@@ -190,13 +190,33 @@ enum FilmEdgeHoles: String, CaseIterable, Identifiable, Codable, Sendable {
     var label: String { self == .white ? L("White") : L("Black") }
 }
 
+/// The lettering's ink: what the film's own words, numbers and barcode print in
+/// (`overscan_edge_color`, API-SPEC §13). `.stock` — nil on the wire's own default — is the film's
+/// edge printer as measured; the named colours are the person's choice, held to the stock's print
+/// luminance in the engine (`overscan.cpp`).
+enum EdgeColor: String, CaseIterable, Identifiable, Codable, Sendable {
+    case stock = "stock", yellow, red, green, blue
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .stock: L("Film's Own")
+        case .yellow: L("Yellow")
+        case .red: L("Red")
+        case .green: L("Neon Green")
+        case .blue: L("Blue")
+        }
+    }
+}
+
 /// **Film Edge** (overscan): the film outside the frame.
 struct FilmEdgeSettings: Codable, Equatable, Sendable {
     /// The keys as they are written: renaming a property must not move its key.
     enum CodingKeys: String, CodingKey {
         case active = "active", format = "format", mode = "mode", gate = "gate", holes = "holes", fog = "fog",
             leaks = "leaks", turn = "turn", cameraSeed = "cameraSeed", frameNumber = "frameNumber", framing = "framing",
-            edgeBrightness = "edgeBrightness"
+            edgeBrightness = "edgeBrightness", edgeColor = "edgeColor"
     }
     var active = false
     var format = FilmEdgeFormat.f135
@@ -225,6 +245,9 @@ struct FilmEdgeSettings: Codable, Equatable, Sendable {
     /// unchanged. The engine has no edge gain, so every film edge is printed at 1×, as the
     /// film was measured; the Edge Print ruler shows the value greyed (`FilmEdgeSteps`).
     var edgeBrightness = 1.0
+    /// The lettering's ink; nil is the film's own colour. Optional so an edit written before it
+    /// exists round-trips byte for byte, and so `stock` is not written at all.
+    var edgeColor: EdgeColor? = nil
 
     static let fogRange = 0.0...4.0
     static let leaksRange = 0.0...4.0
@@ -254,6 +277,7 @@ struct FilmEdgeSettings: Codable, Equatable, Sendable {
         frameNumber = try c.decodeIfPresent(Int.self, forKey: .frameNumber) ?? d.frameNumber
         framing = try? c.decodeIfPresent(Geometry.self, forKey: .framing)
         edgeBrightness = try c.decodeIfPresent(Double.self, forKey: .edgeBrightness) ?? d.edgeBrightness
+        edgeColor = try? c.decodeIfPresent(EdgeColor.self, forKey: .edgeColor)
     }
 
     /// True when the engine draws the film.
@@ -340,6 +364,7 @@ struct FilmEdgeSettings: Codable, Equatable, Sendable {
             ("overscan_leaks", .double(leaks.clamped(to: Self.leaksRange)), .shoot),
             // Display names only: the host chooses what the edge prints.
             ("overscan_edge_text", .string(edgeText), .shoot),
+            ("overscan_edge_color", .string((edgeColor ?? .stock).rawValue), .shoot),
             ("overscan_f_number", .double(fNumber.clamped(to: 0...64)), .shoot),
         ]
         return fields

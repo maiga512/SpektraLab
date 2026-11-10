@@ -174,7 +174,12 @@ def main() -> None:
     prepare_samples()
 
     kinds = {".swift": "sourcecode.swift", ".m": "sourcecode.c.objc", ".h": "sourcecode.c.h"}
-    sources = sorted(p.relative_to(HERE) for p in (HERE / "Sources").rglob("*") if p.suffix in kinds)
+    # `._name.swift` is macOS's AppleDouble of a file on a volume that keeps no extended
+    # attributes (an exFAT disk, a zip unpacked on one). It has the suffix of a source and the
+    # contents of a resource fork: listed, it is compiled, and 330 of them are 330 NUL warnings
+    # a file. The tree is the same tree on such a volume, so they are skipped by name.
+    sources = sorted(p.relative_to(HERE) for p in (HERE / "Sources").rglob("*")
+                     if p.suffix in kinds and not p.name.startswith("._"))
     if not any(p.suffix == ".swift" for p in sources):
         raise SystemExit("no Swift sources under Sources/")
     resources = [  # (path relative to HERE, lastKnownFileType)

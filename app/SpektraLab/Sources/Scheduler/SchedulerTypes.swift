@@ -65,6 +65,17 @@ enum JobKind: String, Codable, Sendable, CaseIterable {
     /// full-size zoom, an export. It is planned against more of the host, the app gives back what
     /// it holds before it waits, and it does not wait for long (`RenderQueue.reclaim`).
     var isAsked: Bool { isCanvas || self == .fullView || self == .export }
+
+    /// Work nobody is waiting on the screen for, and whose picture is a guess at what they will
+    /// ask for next: a strip's card, a thumbnail, a neighbour's render made ahead (an
+    /// `importDevelop`). While a finger is on a control these are a picture of an edit that has
+    /// already moved on — `RenderQueue` starts none, and a running one gives way at once.
+    var isSpeculative: Bool {
+        switch self {
+        case .stockPreview, .thumbnail, .importDevelop: true
+        case .canvasReprint, .canvasDevelop, .shot, .export, .fullView: false
+        }
+    }
 }
 
 /// Why a job is not running, in the words the page shows (RFC-036 §3.5: a job
@@ -162,6 +173,8 @@ struct FrontendState: Equatable, Sendable {
     var lowPower = false
 
     var cameraLive: Bool { camera != .off }
+    /// A finger is on a control of the page (`RenderQueue` holds speculative work still).
+    var isDragging: Bool { if case .dragging = interaction { true } else { false } }
     var cameraPhotoMegapixels: Double {
         if case .live(let mp) = camera { mp } else { 0 }
     }

@@ -49,7 +49,7 @@ extension DevelopWorkspace {
                 DevelopCanvas(frame: frame, edit: session.edit, showsOriginal: original,
                               comparing: comparing, split: $split, initialZoom: opening.zoom,
                               developed: session.developed, progress: status.progress, piece: pieceMarks,
-                              allowsOriginalHold: true)
+                              allowsOriginalHold: true, layer2: session.layer2)
                     // under an inline crop the crop is the picture; the canvas stays (a crop
                     // left keeps its zoom), unseen and untouched.
                     .opacity(cropping == nil ? 1 : 0)
@@ -113,10 +113,15 @@ extension DevelopWorkspace {
         .focused($keysFocused)
         .onKeyPress(keys: [.space], phases: [.down, .up]) { press in
             // Space held: the original, as a finger held on the picture (PAGES.md W-X2).
+            // The fallback path: it needs this page's focus, which the monitor below does not
+            // (`SpaceOriginalKey`'s header — the reason the feature seemed not to exist).
             guard hasOriginal, inlineCrop == nil else { return .ignored }
             if press.phase == .down { comparing = false; original = true } else { original = false }
             return .handled
         }
+        // Space held, without needing the page to hold focus: the monitor's own path.
+        .modifier(SpaceOriginalKey(hasOriginal: hasOriginal, blocked: inlineCrop != nil,
+                                   original: $original, comparing: $comparing))
         // the page takes this frame's crops in place (`AppRouter.show`).
         .onAppear { joinWideWindow(); unfoldInColumn(); router.inlineCropHost = frame.id }
         .onDisappear {

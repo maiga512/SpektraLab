@@ -23,7 +23,7 @@ struct Mutation: Equatable {
                       "wrong-capture-rule", "no-second-capture", "renders-as-asked",
                       "camera-never-warm", "camera-stays-warm", "darkroom-open-beside-camera",
                       "print-layers-free", "previews-wait-their-turn", "previews-jump-the-queue",
-                      "previews-not-coalesced"].map(Mutation.init)
+                      "previews-not-coalesced", "no-drag-gate", "ahead-waits-its-turn"].map(Mutation.init)
 }
 
 @MainActor
@@ -596,6 +596,8 @@ func run(_ mutation: Mutation) async -> Checks {
         if mutation.name == "previews-wait-their-turn" { s.previewsGiveWayAtOnce = false }
         if mutation.name == "previews-jump-the-queue" { s.previewsWaitForTheQueue = false }
         if mutation.name == "previews-not-coalesced" { s.previewsCoalesce = false }
+        if mutation.name == "no-drag-gate" { s.holdsSpeculativeWhileDragging = false }
+        if mutation.name == "ahead-waits-its-turn" { s.speculativeGivesWayAtOnce = false }
         return s
     }
     func running(_ s: RenderQueue, _ id: UUID) -> Bool {
@@ -797,6 +799,45 @@ func run(_ mutation: Mutation) async -> Checks {
         let aOut = await s.outcome(of: a), bOut = await s.outcome(of: b)
         c.expect(aOut == .cancelled && bOut == .cancelled && s.isIdle, "previews: a card cancelled, queued or running, is gone")
         c.expect(s.records.first { $0.jobID == a }?.outcome == "cancelled", "previews: and the running one says it was cancelled")
+    }
+    do {
+        // A finger on a control: nothing speculative starts. A card is a picture of an edit that
+        // has already moved on; it keeps its place and runs when the finger lifts (RFC-036 §3.5).
+        let s = previewScheduler(speed: 0.18)
+        s.frontend.interaction = .dragging(.shoot)
+        let id = s.submit(card())
+        try? await Task.sleep(nanoseconds: 80_000_000)
+        c.expect(!running(s, id) && !s.records.contains { $0.jobID == id },
+                 "previews: nothing starts a card while a finger is on a control")
+        c.expect(s.snapshots.first { $0.id == id }?.state == .waiting(.queued),
+                 "previews: the card held during a drag says it is waiting its turn")
+        s.frontend.interaction = .idle
+        let out = await s.outcome(of: id)
+        if case .finished = out { c.expect(true, "") }
+        else { c.expect(false, "previews: the card held during a drag runs when the finger lifts") }
+    }
+    do {
+        // A develop made ahead of the person (a neighbour's full render, `importDevelop`) gives way
+        // to the canvas edit at once — not when a small job's 0.4 s is up, which is what the finger
+        // would otherwise wait. Forced, so `yieldThreshold` at infinity cannot be why it stopped.
+        let s = previewScheduler(speed: 0.18)
+        s.yieldThreshold = .infinity
+        let ahead = s.submit(job(.importDevelop, canvas, tier: .preview, decodes: true, original: frame48))
+        try? await Task.sleep(nanoseconds: 40_000_000)
+        let wasRunning = running(s, ahead)
+        let asked = Date()
+        let edit = s.submit(job(.canvasDevelop, canvas, tier: .live, layers: [.shoot]))
+        var started: Double?
+        for _ in 0..<100 where started == nil {
+            if running(s, edit) || s.records.contains(where: { $0.jobID == edit }) { started = Date().timeIntervalSince(asked) }
+            else { try? await Task.sleep(nanoseconds: 5_000_000) }
+        }
+        c.expect(wasRunning && (started ?? 9) < 0.1,
+                 "queue: a develop made ahead gives way to the canvas edit at once (\(String(format: "%.0f", (started ?? 9) * 1000)) ms)")
+        c.expect(s.records.contains { $0.jobID == ahead && $0.outcome.contains("gave way") },
+                 "queue: the develop made ahead says it gave way")
+        _ = await s.outcome(of: edit)
+        s.cancel(ahead)
     }
     return c
 }

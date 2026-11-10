@@ -278,11 +278,14 @@ struct EdgeStepPanel: View {
 
     @ViewBuilder private var panel: some View {
         let w = width - 24
+        // Edge Print is one row taller than the others: the lettering's colour sits under its notes
+        // (the owner, 2026-11-10: "在那个视图下面增加一个字体颜色自定义").
+        let h: CGFloat = tool == .print ? 176 : 132
         ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 14).fill(Theme.panel).frame(height: 132)
+            RoundedRectangle(cornerRadius: 14).fill(Theme.panel).frame(height: h)
             toolPanel(tool, w)
         }
-        .frame(height: 132)
+        .frame(height: h)
     }
 
     @ViewBuilder private func toolPanel(_ t: EdgeTool, _ w: CGFloat) -> some View {
@@ -366,7 +369,7 @@ struct EdgeStepPanel: View {
     // gain, so the ruler is shown at the edit's value and does not move: every film edge is
     // printed at 1×, as the film was measured.
     private var printPanel: some View {
-        DrawnBand(height: 132) {
+        DrawnBand(height: 176) {
             // In the column there is no disc above to say whose brightness it is: the ruler says it.
             RulerRow(label: flat ? L(shown: EdgeTool.print.rawValue) : L("Brightness"),
                      valueText: String(format: "%.1f×", edge.edgeBrightness),
@@ -377,10 +380,54 @@ struct EdgeStepPanel: View {
                 .disabled(true)
                 .opacity(0.4)
             DrawnText(L("The light the film’s name, numbers and barcode were printed with."), 11.5, .medium, Theme.dim, fit: true)
-                .spanning(leading: 16, trailing: 16).baseline(106)
+                .spanning(leading: 16, trailing: 16).baseline(96)
             DrawnText(L("Printed at 1× on the Mac: as the film was measured."), 11.5, .medium, Theme.dim, fit: true)
-                .spanning(leading: 16, trailing: 16).baseline(122)
+                .spanning(leading: 16, trailing: 16).baseline(112)
+            // The words' colour (`overscan_edge_color`): the film's own, or one of the three inks
+            // a rebate lettering usually prints in.
+            DrawnText(L("Lettering Colour"), 13, .semibold).leading(16).baseline(136)
+            // Padding, not a leading guide: `leading(16)` moves the row's edge without taking its
+            // width in, and the name at the right ran past the panel (the owner, 2026-11-10).
+            inkSwatches.padding(.leading, 16).padding(.trailing, 16).top(144)
         }
+    }
+
+    /// The four inks, each a dot of its own: the film's (which no fixed swatch can show, so it is
+    /// a slashed circle), yellow, red, green. The chosen one wears the selection ring; tapping the
+    /// chosen colour again goes back to the film's own.
+    private var inkSwatches: some View {
+        let current = edge.edgeColor ?? .stock
+        return HStack(spacing: 10) {
+            ForEach(EdgeColor.allCases) { ink in
+                let on = ink == current
+                Button {
+                    withAnimation(.easeOut(duration: 0.12)) { set(\.edgeColor, on ? nil : ink) }
+                } label: {
+                    ZStack {
+                        if ink == .stock {
+                            Circle().strokeBorder(Theme.rule, lineWidth: 1.5)
+                            Rectangle().fill(Theme.secondaryText).frame(width: 16, height: 1.5)
+                                .rotationEffect(.degrees(-45))
+                        } else {
+                            Circle().fill(Color(hex: ink.hex))
+                            Circle().strokeBorder(Theme.selectionFrame, lineWidth: 2).opacity(on ? 1 : 0)
+                        }
+                    }
+                    .frame(width: 26, height: 26)
+                    .contentShape(Circle())
+                }
+                .buttonStyle(PressStyle())
+                .accessibilityLabel(L("Lettering Colour") + ", " + ink.title)
+                .accessibilityAddTraits(on ? .isSelected : [])
+                .accessibilityIdentifier("film-edge.ink." + ink.rawValue)
+            }
+            Spacer(minLength: 8)
+            Text(current.title)
+                .font(Theme.Font.ui(12))
+                .foregroundStyle(Theme.secondaryText)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: 26)
     }
 
     // Body: the camera, the frame's number, and the advance. The number is
@@ -825,5 +872,19 @@ struct CornerPad: View {
             }
         }
         .frame(width: 84, height: 44)
+    }
+}
+
+extension EdgeColor {
+    /// The swatch's colour on this panel. `stock` has no fixed swatch — the film's own ink was
+    /// measured per stock — so its row draws a slashed circle instead and this is never asked for.
+    var hex: UInt32 {
+        switch self {
+        case .stock: 0xF2B24E
+        case .yellow: 0xE5D23B
+        case .red: 0xF48A2D          // 橙红: what the strip prints (the owner, 2026-11-10)
+        case .green: 0x2FDC14        // 荧光绿: saturated, and it prints so
+        case .blue: 0x43A8FF         // 亮蓝: bright and saturated, as it prints
+        }
     }
 }

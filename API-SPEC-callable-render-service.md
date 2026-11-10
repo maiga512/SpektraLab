@@ -728,6 +728,7 @@ fields. Design and measurements: RFC-032 §26–§29 and RFC-031 (the date back)
 | `overscan_fog` | `…overscan.fog` | float | `1.0` | 0–4 | edge fog's strength; 0 = none (see *Edge light* below) |
 | `overscan_leaks` | `…overscan.leaks` | float | `0.0` | 0–4 | spool light leaks: their count and strength; 0 = none (see *Edge light* below) |
 | `overscan_edge_text` | `…overscan.edge_text` | str | `""` | — | the stock's edge print. **The host chooses** real names or display names of its own. On Fujifilm's 120 layout the first of several words is the maker's mark, printed apart from the name |
+| `overscan_edge_color` | `…overscan.edge_color` | str | `"stock"` | — | the lettering's ink: `stock` is the film's own edge printer as measured; `yellow`, `red`, `green`, `blue` are the host's choice (Mac: Film Edge › Edge Print), held to the stock's print luminance and then taken above it, so a chosen ink reads as itself on the black rebate (measured on a rendered strip: red 6.5× and 橙红, green 9.0× and fluorescent, blue 6.5× and bright — the engine's `overscan.cpp`, tuned by eye; `stock` is untouched) |
 | `overscan_f_number` | `…overscan.f_number` | float | `0.0` | 0–64 | from EXIF; sets the gate's penumbra. 0 = unknown (f/5.6) |
 
 **The date back: one mechanism, three faces**
@@ -1157,3 +1158,65 @@ halation's zero crossing. Session teardown closes the slot; any I/O failure
 falls back to full computation. Striped rendering does not use it.
 `SPK_CHECKPOINT_MODE=off` is a diagnostic forced-full path, not a new wire field.
 `SPK_V2_REFERENCE_OPTICAL=1` is exclusively the old-oracle qualification switch.
+
+## 19. `finish_only` — the finish path: grain, the strip and the date, and no film (2026-11-09)
+
+**Status: in this engine** (`engine/src/pipeline/pipeline.cpp`, `Pipeline::run_finish`;
+`shaders/finish.metal`). One native-only field, **shoot layer, not live** — it is a
+different graph, not the same one with different numbers, so a change rebuilds the
+pipeline and drops the cached negative.
+
+| field | path | type | default | range | meaning |
+|---|---|---|---|---|---|
+| `finish_only` | `io.finish_only` | bool | `false` | — | the frame is the finished picture: no film is exposed and no paper is printed, and the film edge, the date and the stock's grain are drawn on the picture as it is |
+| `scene_wb_temperature` | `camera.finish_white_balance_temperature` | float | `6500` | 1500–15000 | the Decode white balance's target temperature, on the finish path only |
+| `scene_wb_tint` | `camera.finish_white_balance_tint` | float | `0` | −150…150 | its green↔magenta, positive toward magenta |
+
+**The white balance's direction is the RAW decoder's.** The two fields are a
+chromatic gain on the picture: the Planckian colour of `ref` (a fixed 6500 K
+this build, read back as `6500`/`0` when the edit is As Shot) divided by that
+of `scene_wb_temperature`, with `scene_wb_tint` on the green channel, and the
+whole gain scaled so a neutral grey keeps its luminance. Measured against
+`CIRAWFilter.neutralTemperature` on a real CR3 (2026-11-10): Apple's decode at
+2500 K comes out blue (RGB 37/53/126) and at 9000 K warm (119/78/49), and at
++100 tint magenta (G 40) — this node does the same, so the same slider moves
+the same way whether the film's colour is applied or not. 6500 K and 0 tint
+are the identity to the float. The film path never reads these fields: a RAW's
+white balance is its decode's.
+
+**What runs.** `input_cast → decode_input → geometry → overscan (+ date) →
+to_density → grain → from_density → cctf`. The film's exposure, its characteristic
+curves, the DIR couplers, halation and glare, the enlarger, the paper and the scan
+are absent: there is nothing to expose and nothing to print.
+
+**What the film still names.** The grain. The stock's sub-layer curves, its
+`density_max`, the particle area and the uniformity are measured, and the finish
+path reads all of them; what it does not read is the stock's characteristic curve,
+because the picture was already exposed somewhere else. The **paper is not read at
+all**.
+
+**The density axis.** The working space is read onto the stock's density axis and
+back:
+
+    n   = -log10(max(rgb, 1e-9)) / dmax        (per channel)
+    rgb = 10^(-n * dmax)
+
+Exact inverses in real arithmetic, so **with `grain_active = false` and no overscan
+and no date the path is the identity** — `tests/finish_checks.py` holds it to
+1/255 on a real sRGB JPEG (measured 0.01/255). That is the point of the field: a
+photograph graded elsewhere can take a strip, a date and a stock's grain without
+being re-graded. `n` is not clamped: a pixel past the stock's `dmax` looks up the
+end of its grain curve exactly as a negative held there does, and the inverse still
+returns the pixel.
+
+**The strip sizes the grain.** `pixel_size_um_` is the gate's long edge over the
+render's, as on the film path, so 135 and 6×9 give different grain at the same
+output size, and a frame with no strip falls back to `camera.film_format_mm`.
+
+**No negative is cached or reprinted.** `spk_reprint` renders the finish path whole
+(`reprint` and `negative_was_cached` are 0). The stripe executor is not used.
+
+Measured on this checkout (M1 Pro, 900 px JPEG, sRGB in and out): identity 0.01/255;
+grain rms 0.0145 at 1 px falling to 0.0023 over 16×16 blocks, mean colour shift
+under 0.001; 135-strip canvas 869×940 with the gate's picture within 0.002 of the
+input's means. Run `python3 engine/tests/finish_checks.py`.

@@ -74,8 +74,8 @@ enum MacShortcut: String, CaseIterable {
         case .crop: L("Crop")
         case .lightTable: L("Light Table")
         case .compare: L("Compare")
-        case .copy: L("Copy Settings")
-        case .copyChoosing: L("Copy Settings…")
+        case .copy: L("Copy Settings…")          // ⌘C opens the sheet, as the cell's menu does
+        case .copyChoosing: L("Copy Settings")   // ⇧⌘C copies at once, with the last ticked groups
         case .paste: L("Paste Settings")
         case .reset: L("Reset")
         case .export: L("Export")

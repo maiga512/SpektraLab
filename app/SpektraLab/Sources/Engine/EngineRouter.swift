@@ -254,8 +254,10 @@ final class EngineRouter {
     /// The whole wire for a develop of `edit` on `frame`: the edit's own
     /// words, and the frame's side of a film edge and a date (`FilmWire`).
     private func wire(_ frame: LibraryFrame, edit: FrameEdit, longEdge: Int?) -> [String: ParamValue] {
-        // Apply Film Emulation off: no engine, and nothing of the film in what the picture is.
-        guard edit.appliesFilm || frame.isPair else { return Self.digitalWire(edit) }
+        // Apply Film Emulation off: no film and no paper. The engine still renders when the
+        // frame has grain, a film edge or a date (`usesFinishPath`); with none of the three
+        // there is nothing only the engine makes, and the picture is Apple's decode alone.
+        guard edit.usesEngine || frame.isPair else { return Self.digitalWire(edit) }
         var wire = edit.engineWire(previewLongEdge: longEdge, film: FilmWire(frame: frame, edit: edit, bodySeed: bodySeed()))
         if !frame.isPair { holdFilmFormat(&wire, frame: frame, edit: edit) }
         return wire
@@ -306,7 +308,7 @@ final class EngineRouter {
         guard let host else { return true }       // the simulation asks for nothing
         // A job at the preview size reads the RAW's proxy where it is here, the original or not.
         // Apple's decode reads the file itself: a proxy is the engine's decode.
-        let proxy = edit.appliesFilm ? longEdge.flatMap { edge in self.proxy(frame, decode: edit.decode).flatMap { edge <= $0.longEdge ? $0 : nil } } : nil
+        let proxy = edit.usesEngine ? longEdge.flatMap { edge in self.proxy(frame, decode: edit.decode).flatMap { edge <= $0.longEdge ? $0 : nil } } : nil
         guard let source = frame.developSource,
               isHere(frame) || proxy.map({ originals?.copies.hasProxy($0.url) ?? false }) == true else { return false }
         let wire = wire(frame, edit: edit, longEdge: longEdge)
@@ -318,7 +320,7 @@ final class EngineRouter {
         var request = EngineHost.Request(frameID: frame.id, source: source, isRAW: frame.developsFromRAW,
                                          decode: edit.decode, longEdge: longEdge, cut: cut, wire: wire, turnsAfter: turns,
                                          stamp: stamp, purpose: purpose == .canvas ? .canvas : .keep, proxy: proxy)
-        if !edit.appliesFilm { request.digital = cut ?? edit.geometry }
+        if !edit.usesEngine { request.digital = cut ?? edit.geometry }
         host.register(job.id, request)
         return true
         #else
@@ -653,7 +655,7 @@ final class EngineRouter {
                                          turnsAfter: plan.turnsAfter, stamp: "", purpose: .export(order))
         // The page's zoom may have kept this very render (`FullRender`): then it is the export's.
         if job.tier == .full { request.fullRender = fullAsk(frame, plan: plan, source: source, isRAW: isRAW) }
-        if !edit.appliesFilm { request.digital = plan.cut ?? (plan.engineCuts ? edit.geometry : .default) }
+        if !edit.usesEngine { request.digital = plan.cut ?? (plan.engineCuts ? edit.geometry : .default) }
         host.register(job.id, request)
         return true
         #else
@@ -706,7 +708,7 @@ final class EngineRouter {
                                          longEdge: plan.decodeLongEdge, cut: plan.cut,
                                          wire: exportWire(frame, plan: plan, full: true),
                                          turnsAfter: plan.turnsAfter, stamp: ask.stamp, purpose: .fullView(ask))
-        if !frame.edit.appliesFilm { request.digital = plan.cut ?? (plan.engineCuts ? frame.edit.geometry : .default) }
+        if !frame.edit.usesEngine { request.digital = plan.cut ?? (plan.engineCuts ? frame.edit.geometry : .default) }
         host.register(job.id, request)
         return true
         #else

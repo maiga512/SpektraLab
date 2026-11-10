@@ -360,6 +360,10 @@ def check_sources(sources: Path, problems: list):
     shown_call = re.compile(r"(?:\b|\.)(" + "|".join(SHOWN_CALLS) + r")\(\s*$")
     shown_label = re.compile(r"\b(" + "|".join(SHOWN_LABELS) + r")\s*:\s*$")
     for path in sorted(sources.rglob("*.swift")):
+        # `._name.swift` is macOS's AppleDouble of a file on a volume with no extended
+        # attributes (an exFAT disk): a resource fork with a source's suffix, and not UTF-8.
+        if path.name.startswith("._"):
+            continue
         relative = str(path.relative_to(sources))
         source = path.read_text()
         lits = scan(source)

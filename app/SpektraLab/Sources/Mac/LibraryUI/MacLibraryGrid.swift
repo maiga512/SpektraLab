@@ -64,6 +64,11 @@ struct MacLibraryGrid: View {
             case .none: EmptyView()
             }
             if bar != .none { Rectangle().fill(Theme.wall).frame(height: 1) }
+            if bar == .full, browser.filtersShown {
+                MacFilterBar(store: store, browser: browser) { next in
+                    Task { await store.apply(next) }
+                }
+            }
             if viewer, browser.viewerShown {
                 HStack(spacing: 0) {
                     BrowserViewerSplit(image: browser.primary(rows), open: open, chosen: browser.selection.count)
@@ -145,8 +150,11 @@ struct MacLibraryGrid: View {
         return HStack(spacing: MacMetric.pt(8)) {
             HStack(spacing: MacMetric.pt(8)) { leadingControls }
                 .frame(maxWidth: .infinity, alignment: .leading)
-            countLine()
-                .layoutPriority(1)
+            HStack(spacing: MacMetric.pt(8)) {
+                countLine()
+                filterChip
+            }
+            .layoutPriority(1)
             HStack(spacing: MacMetric.pt(8)) { trailingControls }
                 .frame(maxWidth: .infinity, alignment: .trailing)
         }
@@ -202,6 +210,50 @@ struct MacLibraryGrid: View {
         }
         .fixedSize()
         .accessibilityElement(children: .combine)
+    }
+
+    /// The filter bar's entry, beside the count: "Unfiltered", or "Filtered" and how many conditions.
+    private var filterChip: some View {
+        Button { browser.filtersShown.toggle() } label: {
+            HStack(spacing: MacMetric.pt(4)) {
+                Image(systemName: "line.3.horizontal.decrease.circle").font(MacMetric.font(11))
+                Text(store.query.isFiltered ? L("Filtered") : L("Unfiltered")).font(MacMetric.font(12))
+                if activeFilters > 0 {
+                    Text("\(activeFilters)").font(MacMetric.font(10, .semibold))
+                        .foregroundStyle(Theme.background)
+                        .padding(.horizontal, MacMetric.pt(4))
+                        .frame(height: MacMetric.pt(13))
+                        .background(Theme.accent, in: Capsule())
+                }
+            }
+            .foregroundStyle(browser.filtersShown || store.query.isFiltered ? Theme.accent : Theme.dim)
+            .padding(.horizontal, MacMetric.pt(8))
+            .frame(height: MacMetric.pt(20))
+            .background(browser.filtersShown ? Theme.card : Color.clear,
+                        in: RoundedRectangle(cornerRadius: MacMetric.pt(10), style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .help(L("Filters"))
+        .accessibilityIdentifier("mac.library.filterChip")
+    }
+
+    /// How many conditions the query holds, for the chip's badge.
+    private var activeFilters: Int {
+        let q = store.query
+        var n = 0
+        if !q.text.isEmpty { n += 1 }
+        if !q.ratings.isEmpty || q.minimumRating != nil || q.maximumRating != nil { n += 1 }
+        if !q.colorLabels.isEmpty { n += 1 }
+        if !q.kinds.isEmpty { n += 1 }
+        if !q.cameras.isEmpty { n += 1 }
+        if !q.lenses.isEmpty { n += 1 }
+        if !q.keywords.isEmpty { n += 1 }
+        if q.capturedFrom != nil { n += 1 }
+        if q.developedOnly { n += 1 }
+        if !q.editStates.isEmpty { n += 1 }
+        if !q.exportStates.isEmpty { n += 1 }
+        if !q.aspects.isEmpty { n += 1 }
+        return n
     }
 
     private var searchField: some View {
@@ -365,6 +417,26 @@ struct MacLibraryGrid: View {
         // A half-frame pair of the one or two chosen photographs (the owner, 2026-10-25): two fill its holes;
         // one asks for the second, as the window library's Pair does. A pair is not a frame of another pair.
         // Not offered where the page showing the browser does not own the pair's flow and its refusals.
+        // The person's flag (2026-11-09): kept in the app's own book, never written to the file.
+        // A library imported before the app read the files' own stars: read them now, for these.
+        Button {
+            guard let catalog = store as? CatalogSourcesStore else { return }
+            Task { await catalog.readMarks(from: chosen) }
+        } label: {
+            Label(L("Read Rating from Files"), systemImage: "star")
+        }
+        Divider()
+        let flagged = chosen.map(\.url)
+        Button { PickFlags.shared.set(.picked, for: flagged); Task { await store.apply(store.query) } } label: {
+            Label(L("Pick"), systemImage: "flag")
+        }
+        Button { PickFlags.shared.set(.rejected, for: flagged); Task { await store.apply(store.query) } } label: {
+            Label(L("Reject"), systemImage: "flag.slash")
+        }
+        Button { PickFlags.shared.set(nil, for: flagged); Task { await store.apply(store.query) } } label: {
+            Label(L("Clear Flag"), systemImage: "flag.slash.fill")
+        }
+        Divider()
         if let makePair {
             Button { makePair(chosen) } label: { Label(L("Make Half-Frame Pair"), systemImage: "rectangle.split.2x1") }
                 .disabled(!(1...2).contains(chosen.count) || chosen.contains { $0.kind == .pair || $0.develop.flatMap { library.frame($0.frameID) }?.isPair == true })

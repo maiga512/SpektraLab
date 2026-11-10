@@ -536,7 +536,7 @@ final class EngineHost: FrameSource, @unchecked Sendable {
                 onDelivery?(.kept(job: job.id, frame: r.frameID, picture: picture))
             case .export(let order):
                 let written = try ExportWriter.write(image, format: order.format, quality: order.quality, to: order.url,
-                                                     metadataFrom: order.metadataFrom)
+                                                     metadataFrom: order.metadataFrom, mark: order.mark)
                 let edited = order.adjustments.map { $0.isActive ? ", edited after the print (" + $0.changedTools.map(\.rawValue).joined(separator: ", ") + ")" : "" } ?? ""
                 log.info("exported \(order.url.lastPathComponent, privacy: .public): \(written.size.width) x \(written.size.height), \(order.format.rawValue, privacy: .public) \(order.format.bitDepth)-bit in \(order.colour.engineName, privacy: .public)\(edited, privacy: .public), \(Double(written.bytes) / 1_048_576, format: .fixed(precision: 1)) MB, written in \(written.seconds, format: .fixed(precision: 2)) s")
                 exported(job.id, .written(written))

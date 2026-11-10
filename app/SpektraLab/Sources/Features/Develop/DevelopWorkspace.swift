@@ -212,7 +212,7 @@ struct DevelopWorkspace: View {
                     wideEffects
                 }
                 // The film edge, the date back, the grain and the halation are the film's (Apply Film Emulation).
-                .rowEnabled(session.edit.appliesFilm)
+                .rowEnabled(session.edit.appliesFilm || session.edit.usesFinishPath)
                 .padding(.bottom, 12)
             }
         } else if navigation.tool == .crop {
@@ -272,7 +272,7 @@ struct DevelopWorkspace: View {
                          showsPlacement: false, collapsed: $latitudeFolded)
                 .frame(height: latitudeFolded ? 30 : 76)
                 .padding(.horizontal, 12).padding(.vertical, 8)
-                .rowEnabled(session.edit.appliesFilm)
+                .rowEnabled(session.edit.appliesFilm || session.edit.usesFinishPath)
             darkroomTiles
                 .padding(.top, 4).padding(.bottom, 12)
         }
@@ -287,7 +287,9 @@ struct DevelopWorkspace: View {
                          value: summary(page)) {
                     session.pageNavigation.open(page)
                 }
-                .rowEnabled(session.edit.appliesFilm)
+                // Effects stays live with the film's colour off: it is where Grain is, and
+                // turning grain on is one way back into the finish path.
+                .rowEnabled(page == .effects || session.edit.appliesFilm || session.edit.usesFinishPath)
             }
         }
         .padding(.horizontal, 16)
@@ -316,7 +318,7 @@ struct DevelopWorkspace: View {
     /// The open tile's controls, in the strip's place.
     func darkroomControls(_ page: DarkroomPage) -> some View {
         detailControls(page)
-            .rowEnabled(session.edit.appliesFilm)
+            .rowEnabled(page == .effects || session.edit.appliesFilm || session.edit.usesFinishPath)
     }
 
     @ViewBuilder func detailControls(_ page: DarkroomPage) -> some View {

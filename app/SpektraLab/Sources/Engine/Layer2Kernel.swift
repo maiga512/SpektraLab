@@ -184,18 +184,48 @@ enum Layer2Kernel {
         if (u.brightness != 0.0f) {
             c = pow(max(c, 0.0f), 1.0f / (1.0f + u.brightness * 0.8f));
         }
-        // 3. highlights / shadows: tone-region masks on luma, measured from mid-grey
+        // 3. highlights / shadows, and 4. black / white point: four curves, each the shape
+        // its name promises (the owner, 2026-11-10: "像曲线左下角往上面提一点点，不是让
+        // 黑色部分变成灰色"). One `l` feeds all four, read before any of them, so a weight
+        // never chases the adjustment it belongs to; both weights are 0 at mid-grey, so the
+        // midtone holds whatever any of them does.
+        //
+        // - **Shadows** is a *region*: multiplicative, so 0 × k = 0 — the darks open up
+        //   relative to themselves and pure black does not float.
+        // - **Highlights** is the mirror: mixed toward white, so 1 stays 1 either way.
+        // - **Blacks** is *the lower-left corner of the curve*: a positive value raises the
+        //   black end by an absolute little (full travel: black 0 → 0.05 — "提亮黑色", a
+        //   breath, not the 0.125 grey the shift gave), fading to nothing at mid-grey; a
+        //   negative value crushes, multiplicatively, so black holds.
+        // - **Whites** is the upper-right corner the same way round.
+        //
+        // The previous pass used pow() expansions: they multiplied the whole dark region by
+        // up to 1.6×, which floats 0.05–0.2 into the haze the owner called "灰黑灰黑".
         float l = l2TonePosition(l2Luma(c), u.midGrey);
+        float wLo = 1.0f - smoothstep(0.0f, 0.5f, l);   // 1 at black, 0 at mid-grey
+        float wHi = smoothstep(0.5f, 1.0f, l);          // 0 at mid-grey, 1 at white
+        // Coefficients are calibrated to the old sliders' travel: at full shadows the darks
+        // gain exactly what the shift gave them (0.10 → 0.188), with the black held instead
+        // of floated to 0.125. Everything else is a start for the owner's eye to judge.
         if (u.shadows != 0.0f) {
-            float w = (1.0f - l); w = w * w;
-            c += u.shadows * 0.25f * w * (1.0f - c);
+            c *= 1.0f + 1.0f * u.shadows * wLo;          // ×2.2 at the dark end, full travel
         }
         if (u.highlights != 0.0f) {
-            float w = l * l;
-            c += u.highlights * 0.25f * w * (u.highlights > 0.0f ? (1.0f - c) : c);
+            // A shoulder: compress with 1 held (k < 1), lift toward it (k > 1), nothing
+            // below mid-grey touched — the one region where a power shape is the curve.
+            float k = 1.0f + 0.6f * u.highlights * wHi;
+            c = 1.0f - pow(max(1.0f - c, 0.0f), float3(k));
         }
-        // 4. black / white point (the scanner's job)
-        c = (c - u.blackPoint) / max(1.0f - u.blackPoint - u.whitePoint, 0.05f);
+        if (u.blackPoint != 0.0f) {
+            float b = -u.blackPoint;                     // the UI's Blacks, + lifts
+            if (b > 0.0f) c += 0.10f * b * wLo;          // the corner: black 0 → +0.05 at full
+            else c *= 1.0f + 1.0f * b * wLo;             // crush: black holds
+        }
+        if (u.whitePoint != 0.0f) {
+            float w = u.whitePoint;                      // the UI's Whites, + lifts
+            if (w > 0.0f) c += 1.3f * w * wHi * (1.0f - c);   // the corner: white 1 holds
+            else c *= 1.0f + 0.4f * w * wHi;                 // dim: white comes down
+        }
         // 5. saturation, about the luma it leaves alone
         l = l2Luma(c);
         if (u.saturation != 1.0f) {

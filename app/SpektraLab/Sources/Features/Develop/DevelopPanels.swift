@@ -52,6 +52,9 @@ enum DevelopType {
 struct FilmPanel: View {
     let session: OpenFrameSession
     let pro: Bool
+    /// The exposure track's double-click moment (the stray second click of it
+    /// must not put the knob back — see `ValueSlider.lastReset`).
+    @State private var exposureReset = Date.distantPast
     /// V5 combines the material choices in one step; retain the existing controls.
     var includesPaper = false
     /// A snapshot's own: the card the row opens on.
@@ -130,8 +133,8 @@ struct FilmPanel: View {
             // The fixed track, as everywhere else (2026-10-26): the knob moves,
             // the scale does not. Thirds of a stop are its ticks.
             SliderTrack(value: exposure, range: side == nil ? -8...8 : HalfFramePair.exposureRange,
-                        rest: 0, step: 0.1, detentAtRest: false,
-                        onEditingChanged: session.editing(.shoot))
+                        rest: session.originalExposure, step: 0.1, detentAtRest: false,
+                        resetAt: $exposureReset, onEditingChanged: session.editing(.shoot))
                 .padding(.horizontal, Theme.Metric.margin)
                 .top(PanelY.Film.dial + paperOffset)
                 .accessibilityLabel(side.flatMap { pair?.title(.init($0)) }.map { L("Film Exposure, \($0)") } ?? L("Film Exposure"))
@@ -296,12 +299,13 @@ struct FramePanel: View {
     private var sizesBody: some View {
         let held = edge.effective
         return DrawnBand(height: PanelY.Frame.note + 17) {
-            CardRow(items: Self.sizes, selectedID: held ? nil : session.edit.params.filmFrame, height: SizeCard.height,
-                    onPick: setSize) {
+            // Under a strip the cards pick the strip's width (`pickSize`); 110 and APS have no strip
+            // and wait, card by card (the owner, 2026-11-10: the row used to stand down whole).
+            CardRow(items: Self.sizes, selectedID: held ? edgeSizeID : session.edit.params.filmFrame,
+                    height: SizeCard.height, onPick: pickSize, waits: { held && !Self.stripsFilm($0) }) {
                 SizeCard(frame: $0, photo: frame)
             }
             .compositingGroup()
-            .rowEnabled(!held)
             .top(PanelY.Frame.cards - CardRowMetric.framePadding)
             panelNote(PanelNotes.filmSize(edge: held ? edge.format.label : nil)).baseline(PanelY.Frame.note)
         }
@@ -310,21 +314,17 @@ struct FramePanel: View {
     @ViewBuilder private var rowsBody: some View {
         let p = session.edit.params
         let held = edge.effective
-        DrawnBand(height: v5 ? (held ? 144 : 180) : PanelY.height) {
-            // With a film edge on, the film's size is the film edge's own
-            // format — the engine takes the gate's millimetres, not these
-            // (`pipeline.cpp`, `overscan_gate_long_mm`) — so the cards stand
-            // down and the line under them says whose the size is.
-            if !v5 || !held {
-            CardRow(items: Self.sizes, selectedID: held ? nil : p.filmFrame, height: SizeCard.height, onPick: setSize) {
+        DrawnBand(height: v5 ? 180 : PanelY.height) {
+            // The engine takes the strip's gate millimetres while one is on
+            // (`overscan_gate_long_mm`), so under a strip the cards pick the
+            // strip's width itself: 135 and 120 are the film widths there is a
+            // strip for, and 110 and APS wait card by card.
+            CardRow(items: Self.sizes, selectedID: held ? edgeSizeID : p.filmFrame, height: SizeCard.height,
+                    onPick: pickSize, waits: { held && !Self.stripsFilm($0) }) {
                 SizeCard(frame: $0, photo: frame)
             }
-            // Dimmed as one layer, as the drawing dims a group: a card's
-            // parts do not show through one another.
             .compositingGroup()
-            .rowEnabled(!held)
             .top(PanelY.Frame.cards - CardRowMetric.framePadding)
-            }
             if !v5 {
                 panelNote(PanelNotes.filmSize(edge: held ? edge.format.label : nil))
                     .baseline(PanelY.Frame.note)
@@ -343,11 +343,54 @@ struct FramePanel: View {
                         .frame(height: v5 ? 44 : PanelY.Frame.rowPitch).contentShape(Rectangle())
                 }
                 .buttonStyle(PressStyle())
-                .leading(16).baseline(v5 ? 128 : PanelY.Frame.rows[2])
+                .leading(16).baseline(v5 ? 212 : PanelY.Frame.rows[2])
                 if !v5 { DrawnText(L("Crop held by Film Edge"), 12.5, .medium, Theme.dim).trailingInset(16).baseline(PanelY.Frame.rows[2]) }
             } else if !v5 {
                 row(2, L("Crop"), value: Self.cropText(session.edit.geometry, source: frame.originalSize), last: true) {
                     router.show(.crop(frame.id))
+                }
+            }
+        }
+    }
+
+    /// The size card the strip stands for while one is on: 135's film (Half and XPan are 135's own
+    /// too) or 120's.
+    private var edgeSizeID: String? {
+        guard edge.effective else { return nil }
+        switch edge.format.group {
+        case .film135, .panoramic: return "135"
+        case .film120: return "120"
+        }
+    }
+
+    /// The film widths a strip can be cut as (`FilmEdgeFormat`): 110 and APS have none, so their
+    /// cards wait while one is on.
+    private static func stripsFilm(_ f: FilmFrame) -> Bool { f.id == "135" || f.id == "120" }
+
+    /// A size card tapped. With a strip on, the card picks the strip's format — the same choice the
+    /// Film Edge flow's own cards make (`FilmEdgeColumn.pick`), and the photograph's frame moves with
+    /// it, so both read the same when the strip comes off.
+    private func pickSize(_ f: FilmFrame) {
+        let photo = frame.originalSize
+        guard edge.effective else {
+            session.change { $0.params.take(size: f, photo: photo) }
+            return
+        }
+        let group: FilmEdgeFormat.Group = f.id == "120" ? .film120 : .film135
+        guard edge.format.group != group else { return }   // already this film: nothing to move
+        let target: FilmEdgeFormat = f.id == "120" ? .f645 : .f135
+        // The picture's shape as it is: turned, not cropped (the flow's own `pictureAspect`).
+        let a = frame.originalSize.aspect
+        let aspect = session.edit.geometry.quarterTurns % 2 == 0 ? a : 1 / max(a, 0.0001)
+        withAnimation(.easeOut(duration: 0.18)) {
+            session.change { e in
+                e.params.take(size: f, photo: photo)
+                let wasHalfTurned = e.filmEdge.turn >= 2
+                e.filmEdge.format = target
+                e.filmEdge.turn = target.defaultTurn(pictureAspect: aspect) + (wasHalfTurned ? 2 : 0)
+                e.filmEdge.framing = nil
+                if !target.draws(e.dateBack.style), let face = DateBackFace.allCases.first(where: target.draws) {
+                    e.dateBack.style = face
                 }
             }
         }
@@ -376,7 +419,7 @@ struct FramePanel: View {
         }
         .buttonStyle(PressStyle(scale: 1))
         .accessibilityLabel(title + ", " + value)
-        .top((v5 ? (edge.effective ? 28 : 112) + CGFloat(index) * 44 : PanelY.Frame.rows[index]) - base)
+        .top((v5 ? 112 + CGFloat(index) * 44 : PanelY.Frame.rows[index]) - base)
     }
 
     /// Into the Film Edge flow at a step.
@@ -716,9 +759,14 @@ struct ScenePanel: View {
     private var reach: PanelNotes.SceneReach {
         guard let subject else { return .gone }
         if subject.isDemo || subject.developsFromRAW { return pair == nil ? .raw : .rawInPair }
+        // A finished picture on the finish path: the two controls are a colour
+        // shift applied by the engine, not a decode (`EngineWire`, `run_finish`).
+        if session.edit.usesFinishPath { return .finish }
         return subject.isRAW ? .previewCopy : .notRAW
     }
-    private var reaches: Bool { reach.reaches }
+    /// The white balance also reaches a finished picture: the finish path applies
+    /// it as a chromatic gain (`run_finish`). The lens correction does not.
+    private var reaches: Bool { reach.reaches || (reach == .finish && tool == .whiteBalance) }
 
     /// Embedded, the rows move up by what the chips took.
     private var lift: CGFloat { embedded ? PanelY.Scene.first - DecodeSection.firstBaseline : 0 }
@@ -757,13 +805,13 @@ struct ScenePanel: View {
                          sub: d.whiteBalance == .asShot ? L("As Shot") : nil,
                          value: whiteBalance(\.temperature), range: 2000...10000, step: 125, majorEvery: 4,
                          spacing: 7.5, snap: 50, tint: { Color.lerp(Self.temperatureScale.0, Self.temperatureScale.1, $0) },
-                         onEditingChanged: editing)
+                         home: originalWB.temperature, onEditingChanged: editing)
                     .rowEnabled(reaches)
                     .baseline(PanelY.Scene.first - lift)
                 rulerRow(L("Tint"), Fmt.signed(d.tint, decimals: 0),
                          value: whiteBalance(\.tint), range: -150...150, step: 5, majorEvery: 4, spacing: 7.5,
                          snap: 1, tint: { Color.lerp(Self.tintScale.0, Self.tintScale.1, $0) },
-                         onEditingChanged: editing)
+                         home: originalWB.tint, onEditingChanged: editing)
                     .rowEnabled(reaches)
                     .baseline(PanelY.Scene.second - lift)
                 panelNote(PanelNotes.whiteBalance(reach)).baseline(PanelY.Scene.note - lift)
@@ -820,10 +868,31 @@ struct ScenePanel: View {
         if pair != nil, let side { model.keepDecode(of: side, in: session.frameID) }
     }
 
-    /// Moving temperature or tint leaves As Shot for the numbers on the scale.
+    /// Moving temperature or tint leaves As Shot for the numbers on the scale —
+    /// and arriving back **at the photo's own numbers** (the double-tap's write,
+    /// the ruler's `home`) is As Shot again, not a custom point equal to it: the
+    /// RAW path then renders the file's own white balance and the finish path its
+    /// neutral one, both of which are the original the tap promised.
     private func whiteBalance(_ path: WritableKeyPath<DecodeSettings, Double>) -> Binding<Double> {
         Binding(get: { decode[keyPath: path] },
-                set: { v in change { d in d[keyPath: path] = v; d.whiteBalance = .custom } })
+                set: { v in change { d in
+                    // `camera` is the pair, not a DecodeSettings: the number this
+                    // ruler writes is compared against its own member of it.
+                    let own = path == \DecodeSettings.temperature ? camera?.temperature : camera?.tint
+                    if let own, abs(v - own) < 0.5, let cam = camera {
+                        (d.temperature, d.tint) = cam
+                        d.whiteBalance = .asShot
+                    } else {
+                        d[keyPath: path] = v
+                        d.whiteBalance = .custom
+                    }
+                } })
+    }
+
+    /// The white balance the photograph came with: the camera's own where the page
+    /// read it, otherwise the decode's as it stands — double-tap's target.
+    private var originalWB: (temperature: Double, tint: Double) {
+        camera ?? (pair == nil ? session.originalWhiteBalance : (decode.temperature, decode.tint))
     }
 }
 
@@ -903,10 +972,15 @@ struct EffectsPanel: View {
             DrawnBand(height: Self.flatHeight - Self.flatHeader) {
                 let first = PanelY.Effects.strengths[0]
                 grain.baseline(first)
-                halation.baseline(first + Self.flatPitch)
-                scatter.baseline(first + 2 * Self.flatPitch)
-                glare.baseline(first + 3 * Self.flatPitch)
-                couplers.baseline(first + 4 * Self.flatPitch)
+                // Halation, scatter, glare and the couplers need a film (and the
+                // glare a paper): the finish path runs neither, so they stand down
+                // with their colour rather than pretending to act on a finished picture.
+                Group {
+                    halation.baseline(first + Self.flatPitch)
+                    scatter.baseline(first + 2 * Self.flatPitch)
+                    glare.baseline(first + 3 * Self.flatPitch)
+                    couplers.baseline(first + 4 * Self.flatPitch)
+                }.rowEnabled(session.edit.appliesFilm)
             }
         }
         .accessibilityElement(children: .contain)
@@ -919,8 +993,10 @@ struct EffectsPanel: View {
     /// film on its size, the film, the paper. Under them, Scene Placement.
     @ViewBuilder private var strengths: some View {
         grain.baseline(PanelY.Effects.strengths[0])
-        halation.baseline(PanelY.Effects.strengths[1])
-        glare.baseline(PanelY.Effects.strengths[2])
+        Group {
+            halation.baseline(PanelY.Effects.strengths[1])
+            glare.baseline(PanelY.Effects.strengths[2])
+        }.rowEnabled(session.edit.appliesFilm)
         Rectangle().fill(Theme.rule).frame(height: Theme.Metric.rule)
             .padding(.horizontal, Theme.Metric.margin).top(PanelY.Effects.rule - 0.5)
         Button { withAnimation(.easeOut(duration: 0.18)) { placementOpen = true } } label: {

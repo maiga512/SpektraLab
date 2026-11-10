@@ -11,7 +11,7 @@
 //    latest wins (§3.5, R6).
 //  - **Film-side edits** (stock, exposure, placement, effects, white balance,
 //    crop) develop the negative again — 203-216 ms — so they are asked for when
-//    the finger pauses for 150 ms, or lifts.
+//    the finger pauses for 40 ms, or lifts.
 //
 //  The picture on the page is always the last finished develop: never blank,
 //  never half drawn. The status line says what is catching up.
@@ -120,6 +120,27 @@ final class OpenFrameSession {
 
     /// What the controls bind to. Set it through `change`, so the session sees it.
     private(set) var edit: FrameEdit
+    /// What Film Exposure was when this page opened the frame — double-tap's
+    /// target on the slider (`ValueSlider.rest`). The photo's own exposure,
+    /// which for a picture that has been tuned before is not 0.
+    @ObservationIgnored private(set) var originalExposure: Double = 0
+    /// What the white balance was when this page opened it, and refreshed from
+    /// the file's own readback whenever a decode reports it under As Shot —
+    /// double-tap's target on the temperature and tint rulers. The page's
+    /// `cameraWhiteBalance` is captured only from a frame that opens As Shot;
+    /// this one is kept whatever the frame opened as.
+    @ObservationIgnored private(set) var originalWhiteBalance: (temperature: Double, tint: Double) = (5500, 0)
+    /// Edit's adjustments as this page opened them — every Edit slider's
+    /// double-tap target (`Layer2Control`), not 0: a picture tuned yesterday
+    /// goes back to yesterday's settings, not to neutral.
+    @ObservationIgnored private(set) var originalAdjustments: Adjustments = .default
+    /// The Decode curve as this page opened it: `CurveTool(target: .decode)`'s
+    /// double-tap target, the other curve set from `originalAdjustments`'s.
+    @ObservationIgnored private(set) var originalSceneCurve = CurveSet()
+    /// The curve copied from the panel's right-click menu (`CurveTool`): pasted into the channel
+    /// under the pointer on another channel's right-click. A frame's own — a new frame's page is a
+    /// new session, so the clipboard never crosses photographs.
+    @ObservationIgnored var copiedCurve: Curve?
     /// What the last finished render was made from.
     @ObservationIgnored private var rendered: FrameEdit
     /// A half-frame pair: the piece the last finished render was made from.
@@ -171,6 +192,9 @@ final class OpenFrameSession {
     @ObservationIgnored private let log = Logger(subsystem: "com.spektralab.mac", category: "placement")
 
     @ObservationIgnored private var pause: Task<Void, Never>?
+    /// The edit a drag has made, not yet written to the library (`commit`): written when the finger
+    /// lifts, or when the page closes (`close`).
+    @ObservationIgnored private var pendingLibraryWrite: FrameEdit?
     @ObservationIgnored private var dragging: ParamLayer?
     /// The job on its way, and the edit it is of. The same edit is not asked
     /// for twice: a finger that lifts while the develop its pause started is
@@ -189,7 +213,18 @@ final class OpenFrameSession {
     @ObservationIgnored private var askedSource: String?
     @ObservationIgnored private var renderedSource: String?
     /// How long a finger must rest before a film-side edit develops (§3.5).
-    static let filmSidePause = 0.15
+    ///
+    /// It was 150 ms, which is longer than the develop it waits for at the live
+    /// tier (~70-100 ms): the pause alone was most of the delay between a
+    /// slider coming to rest and the picture moving. The queue already drops an
+    /// older canvas job the moment a newer one is submitted (`RenderQueue`
+    /// coalesces canvas work, latest wins), so the pause only has to be long
+    /// enough that a drag is not turned into a job every frame — not long
+    /// enough to let one finish.
+    static let filmSidePause = 0.04
+    /// The film-side pause: a tap's develop is asked at once; a drag's only when it ends
+    /// (`commit`, `ended`). Kept for the taps a card or a chip makes.
+    static let filmSideGap = 0.05
     /// The pages working through this session: the develop page, and the Film
     /// Edge flow when it is presented over it. The last to leave closes it.
     @ObservationIgnored private var holders = 0
@@ -240,6 +275,13 @@ final class OpenFrameSession {
             else { layer = pair.left == nil ? .left : .right }
         }
         edit = current
+        // The exposure this photograph opened with: the exposure slider's double-tap
+        // target — its own value, not 0 (the owner, 2026-11-10: "双击回到原有,
+        // 不是归零").
+        originalExposure = current.params.exposureCompensationEV
+        originalWhiteBalance = (current.decode.temperature, current.decode.tint)
+        originalAdjustments = current.adjustments
+        originalSceneCurve = current.params.sceneCurve
         rendered = current
         renderedPair = kept?.pair
         latitude = Self.unmeasured(darkroom)
@@ -424,6 +466,10 @@ final class OpenFrameSession {
     /// takes it too, without asking for a develop — the picture is already of it.
     func readAsShot(_ temperature: Double, _ tint: Double) {
         guard edit.decode.whiteBalance == .asShot else { return }
+        // The file's own numbers are the photograph's original white balance:
+        // the double-tap target the page's own copy may have missed (it is read
+        // only from a frame that *opened* As Shot, in the page's first moment).
+        originalWhiteBalance = (temperature, tint)
         edit.decode.temperature = temperature
         edit.decode.tint = tint
         rendered.decode.temperature = temperature
@@ -590,7 +636,18 @@ final class OpenFrameSession {
         #endif
         edit = next
         touched()
-        library.update(frameID) { $0.edit = next }
+        // A drag's every tick is not the library's: `frames` is what the grid and the strip observe,
+        // and rewriting it at the slider's rate re-draws both while the finger is still moving (the
+        // owner, 2026-11-10: the foreground must never wait on the back). The page's own copy is the
+        // truth meanwhile; the library takes it when the finger lifts (`ended`).
+        // Edit's own controls (`beganEdit`) hold the library too: its sliders move at the display's
+        // rate, and rewriting `frames` on each tick re-draws the grid and the strip underneath them
+        // (the owner, 2026-11-10: "编辑里面的所有功能调节也很卡顿").
+        if dragging == nil, !editing {
+            library.update(frameID) { $0.edit = next }
+        } else {
+            pendingLibraryWrite = next
+        }
         // Layer 2 follows the edit at once: it is the GPU's pass, not a render.
         layer2.show(adjustments: next.adjustments)
         layer2.show(picture: Layer2Live.picture(for: frame, developed: developed, edit: next))
@@ -607,12 +664,11 @@ final class OpenFrameSession {
         } else if !layers.contains(.shoot) {
             request()                                   // print-side: follows the finger
         } else {
-            pause?.cancel()                             // film-side: when the finger rests
-            pause = Task { [weak self] in
-                try? await Task.sleep(nanoseconds: UInt64(Self.filmSidePause * 1_000_000_000))
-                guard !Task.isCancelled else { return }
-                self?.request()
-            }
+            // Film-side: **not while the finger moves.** A develop is 70–100 ms and its arrival
+            // re-draws the canvas; started mid-drag it makes the drag itself stutter. The release
+            // asks once, with the last value (`ended`), and the picture follows a moment later.
+            pause?.cancel()
+            pause = nil
         }
     }
 
@@ -727,7 +783,14 @@ final class OpenFrameSession {
         dragging = nil
         scheduler.frontend.interaction = .idle
         pause?.cancel(); pause = nil
+        if let pending = pendingLibraryWrite {
+            pendingLibraryWrite = nil
+            library.update(frameID) { $0.edit = pending }
+        }
         request()
+        // The reading the drag skipped (`measureSoon`): of the edit as it stands. A develop on
+        // its way asks again when it lands, and cancels this one.
+        measureSoon(after: Self.latitudePause)
         endHistoryTransaction()
     }
 
@@ -776,6 +839,10 @@ final class OpenFrameSession {
     func endedEdit() {
         guard editing else { return }
         editing = false
+        if let pending = pendingLibraryWrite {
+            pendingLibraryWrite = nil
+            library.update(frameID) { $0.edit = pending }
+        }
         Layer2Copies.shared.release(frameID)
         endHistoryTransaction()
     }
@@ -824,6 +891,10 @@ final class OpenFrameSession {
     /// leaves behind is the frame's kept develop — its last picture when that
     /// is of the edit as it stands, a develop in the queue when it is not.
     private func close() {
+        if let pending = pendingLibraryWrite {
+            pendingLibraryWrite = nil
+            library.update(frameID) { $0.edit = pending }
+        }
         pause?.cancel()
         dragging = nil
         scheduler.frontend.interaction = .idle
@@ -970,6 +1041,10 @@ final class OpenFrameSession {
 
     private func measureSoon(after seconds: Double) {
         guard measuresLatitude, opened else { return }
+        // A finger on a control: the reading would be of an edit still moving, and the probe's
+        // 48 ms runs on the engine's one queue — in front of the develop the finger is waiting for.
+        // `ended` asks again once the finger lifts.
+        guard dragging == nil else { return }
         measuring?.cancel()
         measuring = Task { [weak self] in
             if seconds > 0 { try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000)) }
@@ -996,6 +1071,9 @@ final class OpenFrameSession {
     private func measure() async {
         // GPU work is refused in the background; the next develop asks again.
         guard let darkroom, opened, scheduler.frontend.scene == .active else { return }
+        // A drag began while the reading was waiting: the edit it would measure is not the one the
+        // finger is on, and `ended` asks again (`measureSoon`).
+        guard dragging == nil else { return }
         // A placement the engine has not solved is not the frame's yet: as metered.
         let settings = edit.placementNeedsFit ? edit.params.sceneLatitude.withoutPlacement : edit.params.sceneLatitude
         // What the reply will be of, where that is certain, and whether the

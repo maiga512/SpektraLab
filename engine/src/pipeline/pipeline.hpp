@@ -358,6 +358,18 @@ public:
     // `Tap.CMY_FILM` -> `Tap.RGB_OUT`.
     bool run_print(const Image& cmy, Image& out, Progress* progress, std::string& error);
 
+    /// **The finish path** (`io.finish_only`): the frame is the finished
+    /// picture, and no film or paper runs on it. `RGB_IN` -> `RGB_OUT` through
+    /// the strip (if any), the stock's grain, and nothing else — the colour is
+    /// the picture's own, in and out.
+    ///
+    /// The stock still names the grain: its sub-layer curves, particle area,
+    /// dmax and uniformity are measured, and the only thing not taken from it
+    /// is its characteristic curve — there is nothing to expose. The image is
+    /// read onto that stock's density axis (`-log10` of the working space over
+    /// its `dmax`), which is the density a print of it would have.
+    bool run_finish(const Image& in, Image& out, Progress* progress, std::string& error);
+
     // The reference's per-input meter: what `preprocess.auto_exposure` does
     // when no session EV was set (a standalone pipeline, `warm_up`), on a
     // 256 px stride sample (`small_preview`) or, with `stride` false, on the
@@ -679,6 +691,13 @@ private:
     bool node_film_curves(const Image& in, Image& out, std::string& error);
     bool node_dir_couplers(const Image& cmy, const Image& log_raw, Image& out, std::string& error);
     bool node_grain(const Image& in, Image& out, std::string& error);
+    // The finish path's two halves (`io.finish_only`): the working space read
+    // onto the stock's density axis, and back off it around the grain node.
+    // Inverses of each other in real arithmetic, so the pair is the identity
+    // when grain is off -- held by `tests/finish_checks.py`.
+    bool node_finish_white_balance(const Image& in, Image& out, std::string& error);
+    bool node_finish_to_density(const Image& in, Image& out, std::string& error);
+    bool node_finish_from_density(const Image& in, Image& out, std::string& error);
     /// The grain model itself; `node_grain` is this plus RFC-025's strength.
     bool grain_realise(const Image& in, Image& out, std::string& error);
     bool node_enlarger_spectral(const Image& in, Image& out, std::string& error);

@@ -23,6 +23,13 @@
 import SwiftUI
 import UIKit
 
+/// Where a pointer is a mouse: no touch to arbitrate, no scroll gesture to share.
+enum MacInput {
+    static var takesDragAtOnce: Bool {
+        ProcessInfo.processInfo.isiOSAppOnMac || UIDevice.current.userInterfaceIdiom == .mac
+    }
+}
+
 /// The drag's life as the callers knew it from `DragGesture`.
 struct CoexistingDragValue {
     var start: CGPoint
@@ -95,14 +102,27 @@ extension View {
     @ViewBuilder
     func dragBesideScroll(beginsOn: ((CGPoint) -> Bool)? = nil,
                           onChanged: @escaping (CoexistingDragValue) -> Void,
-                          onEnded: @escaping () -> Void = {}) -> some View {
+                          onEnded: @escaping (CoexistingDragValue) -> Void = { _ in }) -> some View {
+        // **On the Mac a slider takes the pointer at once.** There is no finger to arbitrate with
+        // and no scroll to share: the wheel scrolls the panel, so a press on the track is the
+        // slider's, with no movement before it is given one (the owner, 2026-11-10: "像焊死一样").
+        if MacInput.takesDragAtOnce {
+            return AnyView(highPriorityGesture(DragGesture(minimumDistance: 0)
+                .onChanged { v in
+                    onChanged(CoexistingDragValue(start: v.startLocation, location: v.location, translation: v.translation))
+                }
+                .onEnded { v in
+                    onEnded(CoexistingDragValue(start: v.startLocation, location: v.location, translation: v.translation))
+                }))
+        }
         if #available(iOS 18.0, *) {
-            gesture(CoexistingDrag(beginsOn: beginsOn, onChanged: onChanged, onEnded: { _ in onEnded() }))
+            return AnyView(gesture(CoexistingDrag(beginsOn: beginsOn, onChanged: onChanged, onEnded: onEnded)))
         } else {
-            simultaneousGesture(DragGesture(minimumDistance: 8)
+            return AnyView(simultaneousGesture(DragGesture(minimumDistance: 8)
                 .onChanged { v in onChanged(CoexistingDragValue(start: v.startLocation, location: v.location,
                                                                 translation: v.translation)) }
-                .onEnded { _ in onEnded() })
+                .onEnded { v in onEnded(CoexistingDragValue(start: v.startLocation, location: v.location,
+                                                            translation: v.translation)) }))
         }
     }
 }

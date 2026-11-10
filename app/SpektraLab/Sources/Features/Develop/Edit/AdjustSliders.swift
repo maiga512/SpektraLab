@@ -33,7 +33,11 @@ struct AdjustSliders: View {
                 EditSlider(title: control.title(in: tool), value: Binding(
                     get: { session.adjustments[control] },
                     set: { v in session.changeEdit { $0[control] = v } }),
-                    range: control.range, rest: control.rest,
+                    range: control.range,
+                    // Double-tap goes back to the photo's own value as this page
+                    // opened it — not to neutral (the owner, 2026-11-10: "归位,
+                    // 回到初始状态，不是归零").
+                    rest: session.originalAdjustments[control],
                     text: { control.text($0) + (control == .exposure ? " EV" : "") },
                     track: control.track, detentAtRest: true,
                     editing: { $0 ? session.beganEdit() : session.endedEdit() })

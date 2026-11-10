@@ -93,7 +93,8 @@ struct HSLTool: View {
                 EditSlider(title: component.title, value: Binding(
                     get: { session.adjustments.hsl[hue][component] },
                     set: { v in session.changeEdit { $0.hsl[hue][component] = v } }),
-                    range: HSLSet.range, track: hue.track(component), detentAtRest: true,
+                    range: HSLSet.range, rest: session.originalAdjustments.hsl[hue][component],
+                    track: hue.track(component), detentAtRest: true,
                     editing: { $0 ? session.beganEdit() : session.endedEdit() })
                 .accessibilityIdentifier("adjust.hsl.\(component.rawValue)")
             }
@@ -118,7 +119,8 @@ struct ChannelMixerTool: View {
                 EditSlider(title: input.title, value: Binding(
                     get: { session.adjustments.channelMixer[output][input] + (input == output ? 100 : 0) },
                     set: { v in session.changeEdit { $0.channelMixer[output][input] = v - (input == output ? 100 : 0) } }),
-                    range: input == output ? 0...200 : ChannelMixer.range, rest: input == output ? 100 : 0,
+                    range: input == output ? 0...200 : ChannelMixer.range,
+                    rest: session.originalAdjustments.channelMixer[output][input] + (input == output ? 100 : 0),
                     text: { String(format: "%.0f%%", $0) }, track: [Color(hex: 0x101010), input.swatch], detentAtRest: true,
                     editing: { $0 ? session.beganEdit() : session.endedEdit() })
                 .accessibilityIdentifier("adjust.channel.\(input.rawValue)")

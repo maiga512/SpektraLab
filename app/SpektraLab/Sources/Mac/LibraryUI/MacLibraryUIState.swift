@@ -327,6 +327,9 @@ final class MacLibraryBrowser {
     var moveShown = false
     var sourcePickerShown = false
     var modal: Bool { importAsked || exportAsked || moveShown || sourcePickerShown }
+    /// The filter bar under the grid's header (the owner, 2026-11-09): opened from the chip beside
+    /// the count, it shows every condition the query holds. Kept for the window, not across launches.
+    var filtersShown = false
     /// The navigator's own Filter field (Xcode's): narrows the rows of the tab shown.
     var rowFilter = ""
     /// Folded sections, closed tree rows and opened years, by id.

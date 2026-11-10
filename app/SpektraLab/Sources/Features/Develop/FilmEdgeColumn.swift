@@ -122,8 +122,13 @@ struct FilmEdgeColumn: View {
 
     // MARK: 片边 Film Edge
 
-    /// The section's controls are live with the film edge on and the film applied.
-    private var edgeLive: Bool { edge.active && appliesFilm }
+    /// The section's controls are live with the film edge on. **The switch itself is always
+    /// live**: with the film's colour off, turning the edge on is what puts the frame on the
+    /// finish path (`FrameEdit.usesFinishPath`) — the picture keeps its colour and takes a strip.
+    private var edgeLive: Bool { edge.active }
+    /// Nothing here is greyed for the film's colour any more: the finish path draws the edge,
+    /// the date and the grain with no film under them.
+    private var rowLive: Bool { true }
 
     private var filmEdgeSection: some View {
         VStack(spacing: 0) {
@@ -131,7 +136,7 @@ struct FilmEdgeColumn: View {
             ColumnSectionHeader(title: L("Film Edge"), folded: prefs.filmEdgeCollapsed,
                                 id: "film-edge", toggleFold: { prefs.filmEdgeCollapsed.toggle() }) {
                 SpkToggle(isOn: Binding(get: { edge.active }, set: { setFilmEdge($0) }))
-                    .rowEnabled(appliesFilm)
+                    .rowEnabled(rowLive)
                     .accessibilityLabel(L("Film Edge"))
                     .accessibilityIdentifier("v5.develop.film-edge")
             }
@@ -193,7 +198,7 @@ struct FilmEdgeColumn: View {
     private var printsNothing: Bool { FilmEdgeOptions.printsNothing(back, edge) }
     /// The faces and rulers are live with the film applied. The date is not the film's own (a bare
     /// frame carries it too), but a frame with the film off is Apple's decode: no film, no back.
-    private var dateLive: Bool { appliesFilm }
+    private var dateLive: Bool { rowLive }
 
     private var dateBackSection: some View {
         VStack(spacing: 0) {
@@ -201,7 +206,7 @@ struct FilmEdgeColumn: View {
             ColumnSectionHeader(title: L("Date Back"), folded: prefs.dateBackCollapsed,
                                 id: "date-back", toggleFold: { prefs.dateBackCollapsed.toggle() }) {
                 SpkToggle(isOn: Binding(get: { back.active && !printsNothing }, set: { setDate($0) }))
-                    .rowEnabled(appliesFilm && !printsNothing)
+                    .rowEnabled(rowLive && !printsNothing)
                     .accessibilityLabel(L("Date Back"))
                     .accessibilityIdentifier("v5.develop.date-back")
             }

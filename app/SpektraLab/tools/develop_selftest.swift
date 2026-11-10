@@ -312,6 +312,41 @@ func noteChecks(_ c: inout Checker, _ rules: Rules, catalog: StockCatalog) {
 }
 
 /// Frame's size cards: the name on the card is the size the engine is sent.
+/// The finish path (2026-11-09): film and paper's colour off, the frame's own
+/// picture kept, and the film edge, the date and the grain still drawn.
+func finishChecks(_ c: inout Checker) {
+    var edit = FrameEdit()
+    edit.filmEdge.active = true
+    edit.dateBack.active = true
+    edit.params.grainActive = false
+    c.expect(edit.appliesFilm, "finish: a new frame applies the film")
+    c.expect(!edit.usesFinishPath && edit.usesEngine, "finish: with the film on it is the film path")
+
+    // Turning the film off keeps the edge and the date where they were: that is
+    // what makes the finish path reachable at all.
+    edit.setAppliesFilm(false)
+    c.expect(!edit.appliesFilm, "finish: the switch is off")
+    c.expect(edit.filmEdge.active && edit.dateBack.active,
+             "finish: the edge and the date survive the film being turned off")
+    c.expect(edit.usesFinishPath && edit.usesEngine, "finish: with the edge on it is the finish path")
+    c.expect(edit.filmOff?.filmEdgeActive == true, "finish: the switch's record still says where they were")
+
+    // Nothing left for the engine: no grain, no edge, no date -> a plain decode.
+    edit.filmEdge.active = false
+    edit.dateBack.active = false
+    edit.params.grainActive = false
+    c.expect(edit.finishIsIdentity, "finish: nothing of the engine's is on")
+    c.expect(!edit.usesFinishPath && !edit.usesEngine, "finish: and the frame is Apple's decode")
+
+    // Grain alone puts it back: the stock is the grain's source.
+    edit.params.grainActive = true
+    c.expect(edit.usesFinishPath, "finish: grain alone is enough to need the engine")
+
+    edit.setAppliesFilm(true)
+    c.expect(edit.appliesFilm && edit.params.grainActive, "finish: the film back on keeps the grain")
+    c.expect(!edit.usesFinishPath && edit.usesEngine, "finish: and it is the film path again")
+}
+
 func sizeChecks(_ c: inout Checker, _ rules: Rules) {
     let landscape = PixelSize(width: 6000, height: 4000), upright = PixelSize(width: 4000, height: 6000)
     let phone = PixelSize(width: 4032, height: 3024), square = PixelSize(width: 4000, height: 4000)
@@ -818,6 +853,7 @@ struct DevelopSelfTest {
             panelChecks(&c, rules)
             noteChecks(&c, rules, catalog: catalog)
             sizeChecks(&c, rules)
+            finishChecks(&c)
             slideChecks(&c, rules, catalog: catalog)
             silverChecks(&c, rules, catalog: catalog)
             pageChecks(&c, rules, catalog: catalog)

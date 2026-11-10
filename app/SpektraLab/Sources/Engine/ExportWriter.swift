@@ -48,6 +48,18 @@ struct ExportOrder: Equatable, Sendable {
     /// Edit's crop, cut from the finished picture after everything else
     /// (`FinishedCut`, `ExportPlan.printCrop`). Nil: the file is the whole picture.
     var printCrop: Geometry? = nil
+    /// The library's rating and colour label, for the file's XMP (`ExportMark`).
+    var mark: ExportMark? = nil
+}
+
+/// What the library says of a picture, written into the export's XMP so another program reads it back:
+/// `xmp:Rating` and `xmp:Label`, which Lightroom, Capture One, Bridge and Photoshop all show. Only the
+/// file this app writes carries it — the original is never touched (`TRAPS.md` 35).
+struct ExportMark: Equatable, Sendable {
+    /// 0…5; 0 is not written (no rating).
+    var rating: Int
+    /// The XMP label's own word: "Red", "Yellow", … Nil: no label.
+    var label: String?
 }
 
 /// What became of an export job's file.
@@ -100,7 +112,7 @@ enum ExportWriter {
     /// camera metadata the export carries; nil carries none.
     @discardableResult
     static func write(_ image: CGImage, format: ExportRecipe.Format, quality: Int, to url: URL,
-                      metadataFrom source: URL? = nil) throws -> Written {
+                      metadataFrom source: URL? = nil, mark: ExportMark? = nil) throws -> Written {
         let started = DispatchTime.now().uptimeNanoseconds
         guard image.bitsPerComponent == format.bitDepth else {
             throw Failure.depth(asked: format.bitDepth, given: image.bitsPerComponent)
@@ -129,6 +141,14 @@ enum ExportWriter {
         }
         CGImageDestinationAddImage(destination, image, properties as CFDictionary)
         guard CGImageDestinationFinalize(destination) else { throw Failure.write("the encoder did not finish") }
+        // The library's mark, in the file's own XMP packet: ImageIO's metadata API writes none of it
+        // (measured on this system, 2026-11-09: `kCGImageDestinationMetadata` finalized clean and left
+        // no `xmpmeta` in the file), so a JPEG has its APP1 segment written here. Other containers keep
+        // no mark: a wrong packet in a HEIF or a TIFF is worse than none.
+        if let mark, format == .jpeg, let packet = Self.xmpPacket(mark),
+           let written = try? Data(contentsOf: partial), let out = Self.embedding(packet, in: written) {
+            try? out.write(to: partial, options: .atomic)
+        }
 
         // What is on disk, before it is given its name.
         guard let written = CGImageSourceCreateWithURL(partial as CFURL, nil),
@@ -159,6 +179,41 @@ enum ExportWriter {
         let bytes = ((try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? NSNumber)?.int64Value ?? 0
         return Written(url: url, size: PixelSize(width: w, height: h), bytes: bytes,
                        seconds: Double(DispatchTime.now().uptimeNanoseconds - started) / 1e9)
+    }
+
+    /// The XMP packet a picture's mark makes: `xmp:Rating` and `xmp:Label`, which Lightroom,
+    /// Capture One, Bridge and Photoshop all read back.
+    private static func xmpPacket(_ mark: ExportMark) -> String? {
+        guard mark.rating > 0 || mark.label != nil else { return nil }
+        var attributes = ""
+        if mark.rating > 0 { attributes += " xmp:Rating=\"\(mark.rating)\"" }
+        if let label = mark.label { attributes += " xmp:Label=\"\(label)\"" }
+        return """
+        <?xpacket begin="\u{FEFF}" id="W5M0MpCehiHzreSzNTczkc9d"?>
+        <x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/"\(attributes)/></rdf:RDF></x:xmpmeta>
+        <?xpacket end="w"?>
+        """
+    }
+
+    /// The packet in a JPEG's APP1 segment, after the JFIF header where there is one.
+    private static func embedding(_ packet: String, in data: Data) -> Data? {
+        guard data.count > 4, data[0] == 0xFF, data[1] == 0xD8 else { return nil }
+        var payload = Data("http://ns.adobe.com/xap/1.0/\u{0}".utf8)
+        payload.append(Data(packet.utf8))
+        guard payload.count + 2 <= 0xFFFF else { return nil }
+        var segment = Data([0xFF, 0xE1])
+        let length = payload.count + 2
+        segment.append(UInt8((length >> 8) & 0xFF))
+        segment.append(UInt8(length & 0xFF))
+        segment.append(payload)
+        var at = 2
+        if data[2] == 0xFF, data[3] == 0xE0, data.count > 6 {
+            at = 4 + (Int(data[4]) << 8 | Int(data[5]))
+            guard at <= data.count else { return nil }
+        }
+        var out = data
+        out.insert(contentsOf: segment, at: at)
+        return out
     }
 
     /// What of a file's metadata an export of it carries: the exposure and the

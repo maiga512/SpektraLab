@@ -2003,6 +2003,28 @@
         }
       }
     },
+    "A colour shift on the picture: no sensor white point." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画面にかける色シフト。センサーのホワイトポイントはありません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画面上的颜色偏移：没有传感器白点。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "畫面上的顏色偏移：沒有感測器白點。"
+          }
+        }
+      }
+    },
     "A flash of plain light on the paper first: softer highlights." : {
       "localizations" : {
         "ja" : {
@@ -3143,6 +3165,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "長寬比"
+          }
+        }
+      }
+    },
+    "At Least" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以上"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大于等于"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大於等於"
+          }
+        }
+      }
+    },
+    "At Most" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以下"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "小于等于"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "小於等於"
           }
         }
       }
@@ -4445,6 +4511,28 @@
         }
       }
     },
+    "Clear Flag" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フラグを消去"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清除标旗"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清除標旗"
+          }
+        }
+      }
+    },
     "Clear Working Copies" : {
       "localizations" : {
         "ja" : {
@@ -4819,6 +4907,28 @@
         }
       }
     },
+    "Composition" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "構図"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "构图"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "構圖"
+          }
+        }
+      }
+    },
     "Connect it, or Reconnect if it moved. Its frames' previews still edit." : {
       "localizations" : {
         "ja" : {
@@ -5079,6 +5189,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "拷貝"
+          }
+        }
+      }
+    },
+    "Copy Curve" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲線をコピー"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制曲线"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複製曲線"
           }
         }
       }
@@ -7261,6 +7393,28 @@
         }
       }
     },
+    "Edit Status" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集状態"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修图状态"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修圖狀態"
+          }
+        }
+      }
+    },
     "Edit actions" : {
       "localizations" : {
         "ja" : {
@@ -7459,6 +7613,28 @@
         }
       }
     },
+    "Exactly" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等しい"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等于"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等於"
+          }
+        }
+      }
+    },
     "Exclude Duplicates" : {
       "localizations" : {
         "ja" : {
@@ -7565,6 +7741,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "輸出日誌壓縮檔"
+          }
+        }
+      }
+    },
+    "Export Status" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き出し状態"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出状态"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯出狀態"
+          }
+        }
+      }
+    },
+    "Exported" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き出し済み"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已导出"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已匯出"
           }
         }
       }
@@ -8317,6 +8537,28 @@
         }
       }
     },
+    "Film off" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィルムオフ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "胶片关"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "膠片關"
+          }
+        }
+      }
+    },
     "Film size %@" : {
       "localizations" : {
         "ja" : {
@@ -8335,6 +8577,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "底片尺寸 %@"
+          }
+        }
+      }
+    },
+    "Film's Own" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィルム本来の色"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "胶片原色"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "膠片原色"
           }
         }
       }
@@ -8401,6 +8665,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "篩選"
+          }
+        }
+      }
+    },
+    "Filtered" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "絞り込み中"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已筛选"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已篩選"
           }
         }
       }
@@ -8643,6 +8929,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "符合視窗"
+          }
+        }
+      }
+    },
+    "Flag" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フラグ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "标旗"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "標旗"
           }
         }
       }
@@ -11309,6 +11617,28 @@
         }
       }
     },
+    "Landscape Photo" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "横長"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "横图"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "橫圖"
+          }
+        }
+      }
+    },
     "Language" : {
       "localizations" : {
         "ja" : {
@@ -11701,6 +12031,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "鏡頭校正"
+          }
+        }
+      }
+    },
+    "Lettering Colour" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文字色"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "字体颜色"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "字體顏色"
           }
         }
       }
@@ -13179,6 +13531,28 @@
         }
       }
     },
+    "Neon Green" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ネオングリーン"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "荧光绿"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "螢光綠"
+          }
+        }
+      }
+    },
     "Never in it" : {
       "localizations" : {
         "ja" : {
@@ -13989,6 +14363,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無：尚未沖洗"
+          }
+        }
+      }
+    },
+    "Not Exported" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未書き出し"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未导出"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未匯出"
           }
         }
       }
@@ -15269,6 +15665,28 @@
         }
       }
     },
+    "Paste Curve" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲線をペースト"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "粘贴曲线"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "貼上曲線"
+          }
+        }
+      }
+    },
     "Paste Settings" : {
       "localizations" : {
         "ja" : {
@@ -15467,6 +15885,28 @@
         }
       }
     },
+    "Pick" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピック"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "标为留用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "標為留用"
+          }
+        }
+      }
+    },
     "Pick one or two frames" : {
       "localizations" : {
         "ja" : {
@@ -15485,6 +15925,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選一張或兩張照片"
+          }
+        }
+      }
+    },
+    "Picked" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピック"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "留用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "留用"
           }
         }
       }
@@ -15661,6 +16123,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "直向"
+          }
+        }
+      }
+    },
+    "Portrait Photo" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "縦長"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "竖图"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "豎圖"
           }
         }
       }
@@ -16611,6 +17095,28 @@
         }
       }
     },
+    "Read Rating from Files" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルから評価を読む"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从文件读取星级"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從檔案讀取星級"
+          }
+        }
+      }
+    },
     "Reading" : {
       "localizations" : {
         "ja" : {
@@ -17047,6 +17553,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重做"
+          }
+        }
+      }
+    },
+    "Reject" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リジェクト"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "标为排除"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "標為排除"
+          }
+        }
+      }
+    },
+    "Rejected" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リジェクト"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排除"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排除"
           }
         }
       }
@@ -17491,6 +18041,28 @@
         }
       }
     },
+    "Reset All Curves" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべての曲線をリセット"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重置所有曲线"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重置所有曲線"
+          }
+        }
+      }
+    },
     "Reset Channel" : {
       "localizations" : {
         "ja" : {
@@ -17509,6 +18081,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重設通道"
+          }
+        }
+      }
+    },
+    "Reset Curve" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "曲線をリセット"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重置曲线"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重置曲線"
           }
         }
       }
@@ -19669,6 +20263,28 @@
         }
       }
     },
+    "Square Photo" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正方形"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "方图"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "方圖"
+          }
+        }
+      }
+    },
     "Square {a ratio}" : {
       "localizations" : {
         "ja" : {
@@ -21007,6 +21623,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "成片"
+          }
+        }
+      }
+    },
+    "The finished picture's white balance, before the grain." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仕上がった写真のホワイトバランス（粒子の前）。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "成品图的白平衡，在颗粒之前。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "成品圖的白平衡，在顆粒之前。"
           }
         }
       }
@@ -23387,6 +24025,28 @@
         }
       }
     },
+    "Unedited" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未編集"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未修"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未修"
+          }
+        }
+      }
+    },
     "Unfavourite" : {
       "localizations" : {
         "ja" : {
@@ -23405,6 +24065,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "取消喜好項目"
+          }
+        }
+      }
+    },
+    "Unfiltered" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "絞り込みなし"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未筛选"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未篩選"
           }
         }
       }

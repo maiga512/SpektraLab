@@ -124,7 +124,10 @@ final class Language: @unchecked Sendable {
             current = named
             return
         }
-        if arguments.dropFirst().contains(where: { $0.hasPrefix("--") }) {
+        // A check's launch is English whatever the host is set to. `--hud` is not one: it is the
+        // owner's own way to see Edit's pass, and it must not take their language with it
+        // (2026-11-10: the debugging build opened in English on a Chinese Mac).
+        if arguments.dropFirst().filter({ $0 != "--hud" }).contains(where: { $0.hasPrefix("--") }) {
             current = .english
             return
         }

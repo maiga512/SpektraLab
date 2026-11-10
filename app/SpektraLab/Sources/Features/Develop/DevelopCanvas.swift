@@ -70,6 +70,10 @@ struct DevelopCanvas: View {
     /// tap goes between fit and that; where the preview has no more pixels than the fit, the
     /// picture stays fitted.
     var stopsAtPreviewPixels = false
+    /// The page's own Layer 2, where it has one. Taken rather than looked up by frame: a page whose
+    /// session is not in the app's held table drew the develop and no layer at all (the owner,
+    /// 2026-11-10: "调了没反应"), and the page already holds the pass it draws with.
+    var layer2: Layer2Live? = nil
     @GestureState private var holdingOriginal = false
     @Environment(\.scenePhase) private var scenePhase
     @State private var sourceReady = false
@@ -113,9 +117,10 @@ struct DevelopCanvas: View {
     init(frame: LibraryFrame, edit: FrameEdit, showsOriginal: Bool = false, comparing: Bool = false,
          split: Binding<Double>, initialZoom: CGFloat = 1, developed: DevelopedPicture? = nil, progress: Double? = nil,
          piece: PieceMarks? = nil, allowsOriginalHold: Bool = false, onPageable: ((Bool) -> Void)? = nil,
-         stopsAtPreviewPixels: Bool = false) {
+         stopsAtPreviewPixels: Bool = false, layer2: Layer2Live? = nil) {
         self.onPageable = onPageable
         self.stopsAtPreviewPixels = stopsAtPreviewPixels
+        self.layer2 = layer2
         self.allowsOriginalHold = allowsOriginalHold
         self.piece = piece
         self.frame = frame
@@ -139,6 +144,23 @@ struct DevelopCanvas: View {
     var body: some View {
         // The canvas in the space the person chose to judge it in (`CanvasGamut`, the "···" menu).
         canvas.environment(\.gamutProof, model.settings.canvasGamut)
+            .overlay(alignment: .topLeading) { hud }
+    }
+
+    /// `--hud`: one line of what Edit's pass is doing, for a page that can be talked about over a
+    /// screenshot (the owner, 2026-11-10).
+    @ViewBuilder private var hud: some View {
+        if ProcessInfo.processInfo.arguments.contains("--hud"),
+           let live = layer2 ?? model.openSession(frame.id)?.layer2 {
+            Text(live.hudText)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(.white)
+                .padding(4)
+                .background(Color.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 4))
+                .padding(8)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
     }
 
     private var canvas: some View {
@@ -382,7 +404,7 @@ struct DevelopCanvas: View {
     @ViewBuilder private func developedPicture(pointSize: CGFloat) -> some View {
         let base = DevelopedFrameView(frame: frame, edit: edit, pointSize: pointSize, developed: developed, cropsPrint: false)
         Group {
-            if edit.adjustments.isActive, let live = model.openSession(frame.id)?.layer2, live.picture != nil {
+            if let live = layer2 ?? model.openSession(frame.id)?.layer2 {
                 Layer2Picture(live: live, pointSize: pointSize) { base }
             } else {
                 base

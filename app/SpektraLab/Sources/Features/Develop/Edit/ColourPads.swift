@@ -49,7 +49,9 @@ struct ColourWheelsTool: View {
                 EditSlider(title: L("Luminance"), value: Binding(
                     get: { session.adjustments.colorBalance[zone].luminance * 100 },
                     set: { v in session.changeEdit { $0.colorBalance[zone].luminance = v / 100 } }),
-                    range: -100...100, track: [Color(hex: 0x2A2A29), Color(hex: 0xBDBBB7)], detentAtRest: true,
+                    range: -100...100,
+                    rest: session.originalAdjustments.colorBalance[zone].luminance * 100,
+                    track: [Color(hex: 0x2A2A29), Color(hex: 0xBDBBB7)], detentAtRest: true,
                     editing: { $0 ? session.beganEdit() : session.endedEdit() })
                     .accessibilityIdentifier("adjust.wheels.luminance")
                 if !balance.master.isNeutral { masterLine(balance.master) }

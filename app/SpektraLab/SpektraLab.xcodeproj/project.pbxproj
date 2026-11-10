@@ -5,6 +5,7 @@
 	};
 	objectVersion = 56;
 	objects = {
+		0018244021EA356E23A5FB62 /* EXIFRating.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EXIFRating.swift; sourceTree = "<group>"; };
 		00626F334C13834E3C8F1F6E /* MacLibraryUIState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83D7277A7315A21B47E6F6E2 /* MacLibraryUIState.swift */; };
 		00B47E6BF16737FF9D61497D /* WorkingCopies.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63CD3E70E698C9644CFB51EA /* WorkingCopies.swift */; };
 		01503D660CB7D23B3F5F8C35 /* SpektraLab.icon in Resources */ = {isa = PBXBuildFile; fileRef = B519D0A3C5C7E08A61DA5752 /* SpektraLab.icon */; };
@@ -108,6 +109,7 @@
 		18A66CDB19FD202EDFAC3662 /* PairSnapshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairSnapshots.swift; sourceTree = "<group>"; };
 		18BF2C4AB0F45CDB1C0B2BB7 /* LatitudeMeter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LatitudeMeter.swift; sourceTree = "<group>"; };
 		18CA00C33D1E68E05087E8CD /* MacImportCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacImportCheck.swift; sourceTree = "<group>"; };
+		191E1B4DC7C442245C59BD79 /* MacFilterBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacFilterBar.swift; sourceTree = "<group>"; };
 		1941AC60ACF1B6E715BA33C0 /* InterfaceScale.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterfaceScale.swift; sourceTree = "<group>"; };
 		1A0FA5791717E1B823AECC2C /* LightTableShare.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightTableShare.swift; sourceTree = "<group>"; };
 		1AEF1053C986EBC89A174A4A /* PairOriginalPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairOriginalPreview.swift; sourceTree = "<group>"; };
@@ -246,6 +248,7 @@
 		41E7BB6A1CDB66786D10C8C9 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		41ECA65AF3BBE08A7F904E27 /* MacLibraryDocuments.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6054AC077AF79ED35C451C78 /* MacLibraryDocuments.swift */; };
 		41FFAD600DC744E3FDEBBF21 /* FrameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD4428AC886DB43542DA8C3D /* FrameView.swift */; };
+		42040E2110B153DC248D69FC /* LibraryFilterIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryFilterIndex.swift; sourceTree = "<group>"; };
 		4236F2E8BEA8E1610EA89F4E /* LightTable */ = {
 			isa = PBXGroup;
 			children = (
@@ -354,7 +357,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 202611091041;
+				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = ("$(PROJECT_DIR)/../../engine/include");
@@ -367,7 +370,7 @@
 				INFOPLIST_KEY_UIUserInterfaceStyle = Dark;
 				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks");
 				MARKETING_VERSION = 2.2.2;
-				PRODUCT_BUNDLE_IDENTIFIER = com.spektralab.mac;
+				PRODUCT_BUNDLE_IDENTIFIER = com.spektralab.mac.local;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SPK_COMMIT = "";
 				SPK_UPDATE_FEED_URL = "https://spektralab.app/updates/mac.json";
@@ -521,6 +524,7 @@
 				909280D8F6F80DD1B075485E /* PairPanels.swift */,
 				8A4D4C6C2EBA2EFA5C2876EC /* PaneDividers.swift */,
 				0D182527EA5E1EC07086FA0E /* PresetSheet.swift */,
+				5CEE145FB38AE48E03FA0A69 /* SpaceOriginalKey.swift */,
 				38D84B32A6872C0671B75E42 /* StockCards.swift */,
 				42935C2450AC381AC3C47489 /* StockPreviewPanel.swift */,
 				689F7423F291018251FB4022 /* ViewerPane.swift */,
@@ -591,8 +595,10 @@
 				DAA5FCE198F009EBB54C657C /* MacImportScan.swift */,
 				1D6E120F4359C16E6AABBEB7 /* MacImportSession.swift */,
 				C4655522C1CF9DF986387530 /* CatalogSourcesStore.swift */,
+				C536314B1C909F0A3694B51F /* EXIFRating.swift */,
 				A5B4441C6C89D05D521F91D4 /* HelperProcess.swift */,
 				126703E579C76F164CDB045A /* LibraryAPI.swift */,
+				8DB021E9D3FC10EA251AD53F /* LibraryFilterIndex.swift */,
 				5106684521E1C080C4E8AE05 /* LibraryHost.swift */,
 				4EAAEC742FA7A3FC57061F62 /* MacCatalogActions.swift */,
 				F44190FCE525E6A853C3D367 /* MacLibraryCheck.swift */,
@@ -607,6 +613,7 @@
 				F7AAA2E334719BFCE3A380BB /* MacBrowserSplit.swift */,
 				25A4C237DC49B3F3AB6586E6 /* MacClipboardCheck.swift */,
 				1F020A6723BA2CC6AA7BC9E9 /* MacDevelopBrowser.swift */,
+				D1B77387ECF68CB4A65F84B4 /* MacFilterBar.swift */,
 				73E28348BEB410F881BFA83A /* MacInfoStrip.swift */,
 				6CEFE95AC9B17AFB46675045 /* MacLibraryActions.swift */,
 				A1D2F15514D1036BE6528A00 /* MacLibraryDriver.swift */,
@@ -733,6 +740,7 @@
 			sourceTree = "<group>";
 		};
 		5C9C6377AC9BACD93CB57436 /* PairWithSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairWithSheet.swift; sourceTree = "<group>"; };
+		5CEE145FB38AE48E03FA0A69 /* SpaceOriginalKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7740776446A551592B4E7DA /* SpaceOriginalKey.swift */; };
 		5E7DA9C40C4D74BADA40D562 /* StockPreviewPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockPreviewPanel.swift; sourceTree = "<group>"; };
 		5E8ACABCCBE1DB5D311988C9 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -920,6 +928,7 @@
 			path = FilmEdge;
 			sourceTree = "<group>";
 		};
+		8DB021E9D3FC10EA251AD53F /* LibraryFilterIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42040E2110B153DC248D69FC /* LibraryFilterIndex.swift */; };
 		8E42E4E2B5E4F2BCA59D7128 /* Pair */ = {
 			isa = PBXGroup;
 			children = (
@@ -1012,6 +1021,7 @@
 				5BEAB01098E89E57E5BAA040 /* PairPanels.swift */,
 				A1D1DA80476563F2C9E68A0F /* PaneDividers.swift */,
 				AE07A959C09525C683183F58 /* PresetSheet.swift */,
+				F7740776446A551592B4E7DA /* SpaceOriginalKey.swift */,
 				FA61A4EC609AB88F353095D4 /* StockCards.swift */,
 				5E7DA9C40C4D74BADA40D562 /* StockPreviewPanel.swift */,
 				E91C427AD55C4053CF4488D7 /* ViewerPane.swift */,
@@ -1149,6 +1159,7 @@
 				5071F7FF48AD55E4D62AA57E /* MacBrowserSplit.swift */,
 				127DB119A57280FC2E1D80EE /* MacClipboardCheck.swift */,
 				13EE332ABA7A3CB0E346E2A2 /* MacDevelopBrowser.swift */,
+				191E1B4DC7C442245C59BD79 /* MacFilterBar.swift */,
 				7BEB3A0F0258AD180FABF7FD /* MacInfoStrip.swift */,
 				C45D610BA130E2D2E0F93372 /* MacLibraryActions.swift */,
 				CB1735149B54079AE8094685 /* MacLibraryDriver.swift */,
@@ -1319,7 +1330,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 202611091041;
+				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = ("$(PROJECT_DIR)/../../engine/include");
@@ -1332,7 +1343,7 @@
 				INFOPLIST_KEY_UIUserInterfaceStyle = Dark;
 				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks");
 				MARKETING_VERSION = 2.2.2;
-				PRODUCT_BUNDLE_IDENTIFIER = com.spektralab.mac;
+				PRODUCT_BUNDLE_IDENTIFIER = com.spektralab.mac.local;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SPK_COMMIT = "";
 				SPK_UPDATE_FEED_URL = "https://spektralab.app/updates/mac.json";
@@ -1362,6 +1373,7 @@
 		C4655522C1CF9DF986387530 /* CatalogSourcesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67BA0371C085119BC103B8A1 /* CatalogSourcesStore.swift */; };
 		C46DB2A13F7DFE025F878087 /* CaptureOneSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92BEE4B2FF96DBA8ABAC8EAF /* CaptureOneSource.swift */; };
 		C49DB28897704CD14F706651 /* DevelopWorkspace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevelopWorkspace.swift; sourceTree = "<group>"; };
+		C536314B1C909F0A3694B51F /* EXIFRating.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0018244021EA356E23A5FB62 /* EXIFRating.swift */; };
 		C5926192950FAB508AE8C163 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -1510,6 +1522,7 @@
 		D0FBFBA73B44578C79838D17 /* Badges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Badges.swift; sourceTree = "<group>"; };
 		D16597A7DAFE93B72E432F37 /* AppMenuCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMenuCommands.swift; sourceTree = "<group>"; };
 		D1972080FD6ED57A3CD78CBD /* LibraryBrowser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryBrowser.swift; sourceTree = "<group>"; };
+		D1B77387ECF68CB4A65F84B4 /* MacFilterBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191E1B4DC7C442245C59BD79 /* MacFilterBar.swift */; };
 		D264157254C76D9C167F111B /* InfoSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3C175FF4848E19A59D0E5DE /* InfoSheet.swift */; };
 		D2D91492B5196DDFFE31A217 /* SettingsWindowRoot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D6EE8038E92C40335E69E36 /* SettingsWindowRoot.swift */; };
 		D34C9194D3129C67EDD07200 /* MacSettingsRecipes.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF5F1F49C7F32C47CDBD4B95 /* MacSettingsRecipes.swift */; };
@@ -1651,8 +1664,10 @@
 			isa = PBXGroup;
 			children = (
 				67BA0371C085119BC103B8A1 /* CatalogSourcesStore.swift */,
+				0018244021EA356E23A5FB62 /* EXIFRating.swift */,
 				2A41FF721D3AE50188B77B53 /* HelperProcess.swift */,
 				8B7F85FF4C9467FC761F1980 /* LibraryAPI.swift */,
+				42040E2110B153DC248D69FC /* LibraryFilterIndex.swift */,
 				80F6A6597797456F679ED6F6 /* LibraryHost.swift */,
 				A671D8956FD4BE6A2CD7FC6E /* MacCatalogActions.swift */,
 				DAE2CB9F6DCF19330E793878 /* MacLibraryCheck.swift */,
@@ -1667,6 +1682,7 @@
 			path = Library;
 			sourceTree = "<group>";
 		};
+		F7740776446A551592B4E7DA /* SpaceOriginalKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceOriginalKey.swift; sourceTree = "<group>"; };
 		F7AAA2E334719BFCE3A380BB /* MacBrowserSplit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5071F7FF48AD55E4D62AA57E /* MacBrowserSplit.swift */; };
 		F84FD35CA8548076F2B51EDF /* Release */ = {
 			isa = XCBuildConfiguration;

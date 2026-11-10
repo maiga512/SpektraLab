@@ -9,6 +9,12 @@
 //  balance under As Shot, and fits its own Scene Placement curve. Crop, framing
 //  and each frame's seed never travel.
 //
+//  **Everything else does** (2026-11-10): a copy of a frame is every setting of it — the film and
+//  paper, the switch that turns the film's colour off (`filmOff`, `.filmAndPaper`), the film edge and
+//  the date (`.filmEdgeAndDateBack`, ticked by default now), Decode with its curve, and Edit's
+//  Light, Curve and Colour. Crop and the lens correction stay out: both move the frame's geometry. The boxes still choose what a sheet's copy takes; they open with
+//  all of them and the remembered set follows.
+//
 //  The desktop's seventh group is masks, which the host does not have. The
 //  host's seventh is **Film Edge & Date Back**, unticked by default (and not
 //  offered at all were those features held back: `FeatureFlags`). The film,
@@ -43,10 +49,11 @@ enum ClipboardGroup: String, CaseIterable, Codable, Sendable, Identifiable {
             .filter { $0 != .filmEdgeAndDateBack || FeatureFlags.filmEdge || FeatureFlags.dateBack }
     }
 
-    /// Ticked when the sheet opens: everything but the film edge.
-    static var defaultSelection: Set<ClipboardGroup> {
-        Set(offered.filter { $0 != .filmEdgeAndDateBack })
-    }
+    /// Ticked when the sheet opens: **everything** it offers, the film edge included (the owner,
+    /// 2026-11-10: "所有设置都要跟我前面复制的那张图片一样" — a copy that left the film edge behind was a
+    /// copy that lied). The paste already places the edge on *this* picture: its turn is re-laid
+    /// (`SettingsClip.turn`) and its framing and body stay this frame's own.
+    static var defaultSelection: Set<ClipboardGroup> { Set(offered) }
 
     /// The groups last ticked on the Copy Settings sheet, kept: what the Mac's ⌘C copies without
     /// asking, and what the Mac's sheet opens with. (Capture One's ⇧⌘C copies at once too; which groups
@@ -105,6 +112,9 @@ enum ClipboardGroup: String, CaseIterable, Codable, Sendable, Identifiable {
         case .couplers: return Fmt.times(p.effects.couplers)
         case .preflash: return String(format: "%.3f", p.preflashExposure)
         case .filmAndPaper:
+            // The switch is this group's too (`SettingsClip.written`): a box that showed a film
+            // while the source had it off would show a setting the paste is not going to write.
+            if !edit.appliesFilm { return L("Film off") + Fmt.dot + catalog.pairText(p) }
             return catalog.pairText(p)
         case .exposure:
             return L("Film \(Fmt.signed(p.exposureCompensationEV)) EV · Brightness \(Fmt.signed(p.printBrightnessStops, decimals: 0))")
@@ -269,6 +279,8 @@ struct SettingsClip: Codable, Equatable, Sendable {
                 out.decode.temperature = s.decode.temperature; out.decode.tint = s.decode.tint
             }
             out.params.sceneCurve = s.params.sceneCurve
+            // …and nothing else: `lensCorrection` moves the frame's geometry, so it is with crop
+            // and never travels (`v2_selftest`: "decode excludes lens and crop").
         }
         if groups.contains(.enlarger) {
             out.params.printBrightnessStops = s.params.printBrightnessStops
@@ -282,6 +294,15 @@ struct SettingsClip: Codable, Equatable, Sendable {
         // Edit's tools: each group its own fields of Layer 2, nothing else.
         for group in groups.sorted(by: { $0.rawValue < $1.rawValue }) {
             if let tool = group.layer2Tool { out.adjustments.take(tool, from: s.adjustments) }
+        }
+        // **Apply Film Emulation travels with the film** (the owner, 2026-11-10: "我没有使用胶片模拟…
+        // 同步的也要这样"). It is `filmOff`, and it is written *last*: what it remembers for the day the
+        // film comes back is what the paste just settled — the source's edge and date if that group
+        // travelled too, this frame's own if it did not. Source on, target on; source off, target off.
+        if groups.contains(.filmAndPaper) {
+            out.filmOff = s.filmOff == nil ? nil
+                                           : FrameEdit.FilmOff(filmEdgeActive: out.filmEdge.active,
+                                                               dateBackActive: out.dateBack.active)
         }
         return out
     }

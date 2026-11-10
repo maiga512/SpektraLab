@@ -294,16 +294,18 @@ struct MainWindowLayout: View {
         MacShortcutButton(.first, enabled: free && !rows.isEmpty) { if let row = rows.first { choose(row.id) } }
         MacShortcutButton(.last, enabled: free && !rows.isEmpty) { if let row = rows.last { choose(row.id) } }
         MacShortcutButton(.compare, enabled: free && dev?.compareEnabled == true) { dev?.compare() }
-        // ⌘C copies the open frame's settings (冲洗/编辑) or the chosen picture's (图库) with the groups last
-        // ticked; ⇧⌘C asks on the sheet. ⌘V (⇧⌘V) pastes onto every chosen picture, or onto the open frame
-        // when it is the only one or nothing is chosen (`pasteSettings`). Both arrive as Edit's Copy and
-        // Paste, so a field being edited keeps its own (`MacKeySpec.standard`).
+        // ⌘C **asks on the sheet, as the cell's 拷贝设置 does** (the owner, 2026-11-10: "⌘C…应该跟
+        // 鼠标点右键的拷贝设置一样，点了之后会弹出来一个弹窗…然后点确认"). ⇧⌘C is the one that copies at once,
+        // with the groups last ticked — a dialog every copy was what that used to be the other way
+        // round. ⌘V (⇧⌘V) pastes onto every chosen picture, or onto the open frame when it is the only
+        // one or nothing is chosen (`pasteSettings`). Both arrive as Edit's Copy and Paste, so a field
+        // being edited keeps its own (`MacKeySpec.standard`).
         let source = dev?.frameID ?? browser.primary(rows)?.develop.map(\.frameID).flatMap { library.frame($0)?.id }
         MacShortcutButton(.copy, enabled: free && source != nil) {
-            if let source { actions.copySettings(of: source, model: model) }
+            if let dev { dev.copySettings() } else if let source { router.present(.copySettings(source)) }
         }
         MacShortcutButton(.copyChoosing, enabled: free && source != nil) {
-            if let dev { dev.copySettings() } else if let source { router.present(.copySettings(source)) }
+            if let source { actions.copySettings(of: source, model: model) }
         }
         MacShortcutButton(.paste, enabled: free && library.clipboard != nil && (dev != nil || !browser.selection.isEmpty)) {
             pasteSettings(store, rows, dev)

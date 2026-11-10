@@ -372,3 +372,8 @@ desktop/src-tauri/tauri.bundle.json
 
 # Native Metal pipelines are built for the build host; portable IR remains bundled.
 *.metalar
+
+# macOS AppleDouble files on a volume without extended attributes (an exFAT
+# disk): a resource fork wearing the file's name and suffix — 330+ of them
+# under Sources/ alone, each a fake source. Untracked on purpose.
+._*

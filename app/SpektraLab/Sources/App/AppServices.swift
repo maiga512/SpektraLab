@@ -113,6 +113,8 @@ final class AppServices {
         #endif
         router = AppRouter()
         exporter.film = { [weak self] frame in self?.exportFilm(frame) }
+        // The rating and colour label each exported file carries in its XMP (`ExportMark`).
+        exporter.marks = { [weak self] paths in await self?.macLibrary.marks(forPaths: paths) ?? [:] }
         exporter.cropIsFrame = { [settings] in settings.cropRemapsFrame }
         darkroom.originals = originals
         // The page's zoom renders a frame as its export at Full would (`FullRender`), so that export is made of it.

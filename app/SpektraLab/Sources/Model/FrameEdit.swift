@@ -171,18 +171,33 @@ struct FrameEdit: Codable, Equatable, Sendable {
     /// Whether the film is applied: the switch's state.
     var appliesFilm: Bool { filmOff == nil }
 
+    /// **The finish path** (the owner, 2026-11-09): the film and the paper's
+    /// colour are off, and the engine still renders — because the frame has
+    /// something only the engine makes: its grain, its film edge, its date.
+    ///
+    /// The picture is not re-graded: it enters and leaves the engine as the
+    /// values it has, and grain is added at its own density
+    /// (`Pipeline::run_finish`, `finish_only` on the wire). A photograph
+    /// already graded elsewhere — a JPEG from another app — takes the film
+    /// edge, the date and the grain of a stock, and keeps its colour.
+    var usesFinishPath: Bool { !appliesFilm && !finishIsIdentity }
+
+    /// Nothing is left for the engine to add: no grain, no edge, no date. With
+    /// the film off too, the frame is a plain digital decode (`EngineHost.digital`).
+    var finishIsIdentity: Bool { !params.grainActive && !filmEdge.effective && !dateBack.active }
+
+    /// The engine renders this frame: the film, or the finish path.
+    var usesEngine: Bool { appliesFilm || usesFinishPath }
+
     /// The switch moved: off keeps the film edge's and the date back's own switches and turns both off
     /// (the engine draws them, and no engine runs); on puts them back as they were.
     mutating func setAppliesFilm(_ on: Bool) {
-        if on, let off = filmOff {
-            filmEdge.active = off.filmEdgeActive
-            dateBack.active = off.dateBackActive
-            filmOff = nil
-        } else if !on, filmOff == nil {
-            filmOff = FilmOff(filmEdgeActive: filmEdge.active, dateBackActive: dateBack.active)
-            filmEdge.active = false
-            dateBack.active = false
-        }
+        // The edge's and the date's own switches are **left where they are**:
+        // the finish path keeps them (`usesFinishPath`), so turning the film
+        // off must not lose them. `FilmOff` still records where they were, so
+        // an edit written by the build that did clear them reads the same.
+        if on { filmOff = nil }
+        else if filmOff == nil { filmOff = FilmOff(filmEdgeActive: filmEdge.active, dateBackActive: dateBack.active) }
     }
 
     static let `default` = FrameEdit()

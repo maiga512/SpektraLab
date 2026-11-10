@@ -157,6 +157,7 @@ const SchemaField kFields[] = {
     {"overscan_fog",             "film_render.overscan.fog",              F, SHOOT, true, 0.0, 4.0, false},
     {"overscan_leaks",           "film_render.overscan.leaks",            F, SHOOT, true, 0.0, 4.0, false},
     {"overscan_edge_text",       "film_render.overscan.edge_text",        S, SHOOT, false, 0, 0, false},
+    {"overscan_edge_color",      "film_render.overscan.edge_color",       S, SHOOT, false, 0, 0, false},
     {"overscan_f_number",        "film_render.overscan.f_number",         F, SHOOT, true, 0.0, 64.0, false},
     {"overscan_gate",            "film_render.overscan.gate",             S, SHOOT, false, 0, 0, false},
     {"overscan_holes",           "film_render.overscan.holes",            S, SHOOT, false, 0, 0, false},
@@ -214,6 +215,17 @@ const SchemaField kFields[] = {
     // film, on Scene Latitude's stop axis. Native only, SHOOT, after
     // `halation_headroom_ev`. "" = off.
     {"scene_curve",              "camera.scene_curve",                    S, SHOOT, false, 0, 0, false},
+    // The finish path: no film and no paper, the frame taken as the finished
+    // picture, and only grain, the film edge and the date run on it. Native
+    // only, SHOOT -- a different graph, so it rebuilds the pipeline and drops
+    // the cached negative. Placed after `scene_curve`, before
+    // `preview_long_edge`, like every native field.
+    {"finish_only",              "io.finish_only",                        B, SHOOT, false, 0, 0, false},
+    // The finish path's white balance (`CameraParams.finish_white_balance_*`):
+    // a chromatic gain on a finished picture. Native only, SHOOT, after
+    // `finish_only`. 6500 K and 0 tint are the identity.
+    {"scene_wb_temperature",     "camera.finish_white_balance_temperature", F, SHOOT, true, 1500.0, 15000.0, false},
+    {"scene_wb_tint",            "camera.finish_white_balance_tint",        F, SHOOT, true, -150.0, 150.0, false},
     // The app's *preview resolution*: the `live` tier's long edge, and so the
     // size every interactive edit renders at. PRINT layer, because it is a
     // decision about the canvas rather than about the film -- but it is one of
@@ -234,6 +246,9 @@ const SchemaField* find_field(const std::string& name) {
 // error here and a test failure there, never a silently ignored slider.
 
 double* float_slot(Params& p, const std::string& path) {
+    if (path == "camera.finish_white_balance_temperature")
+        return &p.camera.finish_white_balance_temperature;
+    if (path == "camera.finish_white_balance_tint") return &p.camera.finish_white_balance_tint;
     if (path == "camera.exposure_compensation_ev") return &p.camera.exposure_compensation_ev;
     if (path == "camera.film_format_mm") return &p.camera.film_format_mm;
     if (path == "camera.lens_blur_um") return &p.camera.lens_blur_um;
@@ -301,6 +316,7 @@ bool* bool_slot(Params& p, const std::string& path) {
     if (path == "scanner.black_correction") return &p.scanner.black_correction;
     if (path == "io.output_cctf_encoding") return &p.io.output_cctf_encoding;
     if (path == "io.scan_film") return &p.io.scan_film;
+    if (path == "io.finish_only") return &p.io.finish_only;
     if (path == "io.digital_intermediate") return &p.io.digital_intermediate;
     if (path == "io.digital_intermediate_blue_compensation")
         return &p.io.digital_intermediate_blue_compensation;
@@ -328,6 +344,7 @@ std::string* str_slot(Params& p, const std::string& path) {
     if (path == "film_render.overscan.format") return &p.film_render.overscan.format;
     if (path == "film_render.overscan.mode") return &p.film_render.overscan.mode;
     if (path == "film_render.overscan.edge_text") return &p.film_render.overscan.edge_text;
+    if (path == "film_render.overscan.edge_color") return &p.film_render.overscan.edge_color;
     if (path == "film_render.date_imprint.text") return &p.film_render.date_imprint.text;
     if (path == "film_render.date_imprint.text_b") return &p.film_render.date_imprint.text_b;
     if (path == "film_render.date_imprint.data_text") return &p.film_render.date_imprint.data_text;

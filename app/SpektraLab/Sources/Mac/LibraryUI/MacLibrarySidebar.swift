@@ -344,16 +344,54 @@ struct MacLibrarySidebar: View {
     private func facetGroups() -> [(id: String, title: String, rows: [FacetRow])] {
         let f = store.facets, q = store.query
         var groups: [(String, String, [FacetRow])] = []
-        groups.append(("rating", L("Rating"), f.ratings.sorted { $0.value < $1.value }.map { v in
-            FacetRow(id: "rating.\(v.value)", title: MacWords.rating(v.value), count: v.count, on: q.ratings.contains(v.value)) {
-                change { $0.ratings.formSymmetricDifference([v.value]) }
+        // All five stars and "none", whatever the collection holds (the owner, 2026-11-10).
+        groups.append(("rating", L("Rating"), (0...5).reversed().map { value in
+            let count = f.ratings.first { $0.value == value }?.count ?? 0
+            let v = (value: value, count: count)
+            // The stars are read by the rule above them (`ratingRulePicker`): ≥, ≤ or =.
+            let on: Bool
+            switch q.ratingRule {
+            case .atLeast: on = q.minimumRating == v.value
+            case .atMost: on = q.maximumRating == v.value
+            case .exactly: on = q.ratings == [v.value]
+            }
+            return FacetRow(id: "rating.\(v.value)", title: q.ratingRule.sign + " " + MacWords.rating(v.value),
+                            count: v.count, on: on) {
+                change { next in
+                    switch next.ratingRule {
+                    case .atLeast: next.minimumRating = next.minimumRating == v.value ? nil : v.value
+                    case .atMost: next.maximumRating = next.maximumRating == v.value ? nil : v.value
+                    case .exactly: next.ratings = next.ratings == [v.value] ? [] : [v.value]
+                    }
+                }
             }
         }))
-        groups.append(("colour", L("Colour Label"), f.colorLabels.sorted { $0.value < $1.value }.map { v in
-            FacetRow(id: "colour.\(v.value)", title: MacWords.colorName(v.value), count: v.count, on: q.colorLabels.contains(v.value),
-                     swatch: MacWords.color(v.value)) {
-                change { $0.colorLabels.formSymmetricDifference([v.value]) }
+        groups.append(("colour", L("Colour Label"), MacColorLabel.allCases.map { c in
+            let count = f.colorLabels.first { $0.value == c.rawValue }?.count ?? 0
+            return FacetRow(id: "colour.\(c.rawValue)", title: MacWords.colorName(c.rawValue), count: count,
+                            on: q.colorLabels.contains(c.rawValue), swatch: MacWords.color(c.rawValue)) {
+                change { $0.colorLabels.formSymmetricDifference([c.rawValue]) }
             }
+        }))
+        // Worked on or not: the helper's own count of the same filter (`edited`).
+        groups.append(("edit", L("Edit Status"), [
+            FacetRow(id: "edit.edited", title: MacEditState.edited.title, count: f.edited,
+                     on: q.editStates.contains(.edited)) { change { Self.flip(&$0.editStates, .edited) } },
+            FacetRow(id: "edit.unedited", title: MacEditState.unedited.title, count: f.unedited,
+                     on: q.editStates.contains(.unedited)) { change { Self.flip(&$0.editStates, .unedited) } },
+        ]))
+        // Written out or not: the app's export book against this collection's rows.
+        groups.append(("export", L("Export Status"), [
+            FacetRow(id: "export.exported", title: MacExportState.exported.title, count: f.exported,
+                     on: q.exportStates.contains(.exported)) { change { Self.flip(&$0.exportStates, .exported) } },
+            FacetRow(id: "export.not", title: MacExportState.notExported.title, count: f.notExported,
+                     on: q.exportStates.contains(.notExported)) { change { Self.flip(&$0.exportStates, .notExported) } },
+        ]))
+        // Landscape, portrait, square: the rows' pixel sizes, counted in the app.
+        groups.append(("aspect", L("Composition"), f.aspects.compactMap { v in
+            guard let a = MacAspect(rawValue: v.value) else { return nil }
+            return FacetRow(id: "aspect.\(a.rawValue)", title: a.title, count: v.count,
+                            on: q.aspects.contains(a)) { change { Self.flip(&$0.aspects, a) } }
         }))
         var dates: [FacetRow] = []
         for y in f.years.sorted(by: { $0.value > $1.value }) {
@@ -404,6 +442,11 @@ struct MacLibrarySidebar: View {
         return groups.filter { !$0.2.isEmpty }.map { (id: $0.0, title: $0.1, rows: $0.2) }
     }
 
+    /// A facet row's tick: on, or off.
+    private static func flip<T: Hashable>(_ set: inout Set<T>, _ value: T) {
+        if set.contains(value) { set.remove(value) } else { set.insert(value) }
+    }
+
     /// A date range ticked: the one chosen, or none when it was chosen already.
     private static func range(_ q: inout MacImageQuery, _ from: String, _ to: String) {
         if q.capturedFrom == from && q.capturedTo == to { q.capturedFrom = nil; q.capturedTo = nil }
@@ -432,12 +475,38 @@ struct MacLibrarySidebar: View {
                     let id = "facet." + group.id
                     SectionRow(title: group.title, folded: browser.folded.contains(id)) { fold(id) }
                     if !browser.folded.contains(id) {
+                        if group.id == "rating" { ratingRulePicker }
                         ForEach(group.rows.filter { needle.isEmpty || $0.title.lowercased().contains(needle) }) { facetLine($0) }
                     }
                 }
             }
             .padding(.bottom, MacMetric.pt(8))
         }
+    }
+
+    /// ≥ / ≤ / =: what a star click means, in one row above the stars (Capture One\'s filter bar).
+    /// The rule is a filter of its own only in that it decides which bound a row sets; a row with no
+    /// stars ticked filters nothing.
+    private var ratingRulePicker: some View {
+        let rule = store.query.ratingRule
+        return HStack(spacing: MacMetric.pt(2)) {
+            ForEach(MacRatingRule.allCases, id: \.self) { r in
+                Button { change { $0.ratingRule = r } } label: {
+                    Text(r.sign).font(MacMetric.font(11, .semibold))
+                        .foregroundStyle(r == rule ? Theme.text : Theme.dim)
+                        .frame(width: MacMetric.pt(26), height: MacMetric.pt(20))
+                        .background(r == rule ? Theme.card : Color.clear,
+                                    in: RoundedRectangle(cornerRadius: MacMetric.pt(4), style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .help(r.title)
+                .accessibilityLabel(r.title)
+                .accessibilityAddTraits(r == rule ? .isSelected : [])
+            }
+        }
+        .padding(.horizontal, MacMetric.pt(14))
+        .frame(height: MacMetric.pt(24))
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func facetLine(_ r: FacetRow) -> some View {

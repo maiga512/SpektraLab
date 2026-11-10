@@ -42,6 +42,11 @@ struct ValueSlider: View {
     var labelWidth: CGFloat = 92
     var fieldWidth: CGFloat = 78
     var onEditingChanged: (Bool) -> Void = { _ in }
+    /// When the double-click last restored `rest`. The track's own click puts
+    /// the knob where the finger was — a stray second tap of the same
+    /// double-click would put it straight back (the owner, 2026-11-10: "回去
+    /// 又跳回来，相当于没有操作"), so it is ignored for a moment.
+    @State private var lastReset = Date.distantPast
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
@@ -61,13 +66,16 @@ struct ValueSlider: View {
             }
             .frame(width: labelWidth, alignment: .trailing)
             .contentShape(Rectangle())
-            .onTapGesture(count: 2) { commit(rest) }
+            .onTapGesture(count: 2) { lastReset = Date(); commit(rest) }
             .accessibilityHidden(true)
 
             SliderTrack(value: $value, range: range, rest: rest, step: step,
                         tint: tint, colours: track, detentAtRest: detentAtRest,
-                        showsRest: showsRest, onEditingChanged: onEditingChanged)
+                        showsRest: showsRest, resetAt: $lastReset, onEditingChanged: onEditingChanged)
                 .frame(height: 28)
+                // Double-click the slider itself: back to its neutral value (the label has done this
+                // since 2026-10-26; the owner asked for the track too, 2026-11-10).
+                .simultaneousGesture(TapGesture(count: 2).onEnded { lastReset = Date(); commit(rest) })
 
             SliderField(shown: text(value), width: fieldWidth,
                         parse: SliderField.number(from:), commit: commit)
@@ -96,9 +104,16 @@ struct SliderTrack: View {
     var colours: [Color]? = nil
     var detentAtRest = false
     var showsRest = true
+    /// The double-click's moment, to keep the stray second click of it from
+    /// putting the knob back (see `ValueSlider.lastReset`). Written by this
+    /// row's own two-click detection too; a row that passes no binding writes
+    /// a constant (its own double-click then protects itself alone).
+    var resetAt: Binding<Date> = .constant(.distantPast)
     var onEditingChanged: (Bool) -> Void = { _ in }
     @State private var origin: Double?
-    @State private var ownership = DragOwnership()
+    @State private var ownership = DragOwnership(threshold: MacInput.takesDragAtOnce ? 1 : 8)
+    /// The last click on the track, for the second one that resets the value.
+    @State private var lastClick: (at: Date, where: CGPoint)?
     @State private var width: CGFloat = 1
     @Environment(\.accessibilityReduceMotion) private var calm
 
@@ -143,6 +158,9 @@ struct SliderTrack: View {
             .contentShape(Rectangle())
             // Mac: a click puts the knob there (one edit, committed as a release is).
             .onTapGesture(coordinateSpace: .local) { at in
+                // The double-click has just spoken (or is about to): this tap is
+                // its second one, and moving the knob to it would undo the reset.
+                if Date().timeIntervalSince(resetAt.wrappedValue) < 0.4 { return }
                 let v = (range.lowerBound + Double(at.x / w) * span).clamped(to: range)
                 onEditingChanged(true)
                 value = snapped(v)
@@ -161,9 +179,24 @@ struct SliderTrack: View {
             let travel = max(width, 1)
             let next = (origin ?? value) + Double(g.translation.width / travel) * span
             value = snapped(next.clamped(to: range))
-        }, onEnded: {
-            if origin != nil { onEditingChanged(false) }
-            origin = nil; ownership = DragOwnership()
+        }, onEnded: { g in
+            let dragged = origin != nil
+            if dragged { onEditingChanged(false) }
+            origin = nil
+            ownership = DragOwnership(threshold: MacInput.takesDragAtOnce ? 1 : 8)
+            // Two clicks on the track in a row, the second close to the first: back to the neutral
+            // value (Lightroom's and Capture One's double-click). A drag never counts as one.
+            let moved = (g.translation.width * g.translation.width + g.translation.height * g.translation.height).squareRoot()
+            guard !dragged, moved < 3 else { lastClick = nil; return }
+            if let last = lastClick, Date().timeIntervalSince(last.at) < 0.4,
+               (g.start.x - last.where.x) * (g.start.x - last.where.x)
+                 + (g.start.y - last.where.y) * (g.start.y - last.where.y) < 64 {
+                lastClick = nil
+                resetAt.wrappedValue = Date()
+                commit(rest)
+            } else {
+                lastClick = (Date(), g.start)
+            }
         })
         .onDisappear {
             if origin != nil { onEditingChanged(false) }

@@ -133,6 +133,10 @@ final class ExportService {
     /// Where every batch's folder is.
     nonisolated static var folder: URL { FileManager.default.temporaryDirectory.appendingPathComponent("Exports", isDirectory: true) }
 
+    /// What the library holds of the files in a batch — their rating and colour label — for the XMP
+    /// the written file carries (`ExportMark`). Set by the app (`AppServices`); nil writes none.
+    @ObservationIgnored var marks: (([URL]) async -> [String: ExportMark])?
+
     /// The film a frame is exported in, when it wears a film edge. Set by the
     /// app's model.
     @ObservationIgnored var film: (LibraryFrame) -> Film? = { _ in nil }
@@ -262,6 +266,8 @@ final class ExportService {
     private func run() async {
         guard let count = batch?.items.count, let recipe = batch?.recipe else { return }
         let folder = batch?.folder
+        // The library's marks once for the batch: the files' XMP is written from these.
+        let marked = await marks?((batch?.items ?? []).compactMap { $0.picture.fileURL }) ?? [:]
         for i in 0..<count {
             guard !Task.isCancelled, let item = batch?.items[i], var frame = library.frame(item.id) else { return }
             batch?.index = i
@@ -316,7 +322,8 @@ final class ExportService {
                 let order = ExportOrder(format: recipe.format, colour: recipe.colour, quality: recipe.quality,
                                         url: folder.appendingPathComponent(item.fileName), metadataFrom: source,
                                         adjustments: frame.edit.adjustments.isActive ? frame.edit.adjustments : nil,
-                                        printCrop: made.plan.printCrop)
+                                        printCrop: made.plan.printCrop,
+                                        mark: marked[CatalogSourcesStore.key(source.path)])
                 darkroom.prepareExport(job, frame: frame, source: source, isRAW: made.isRAW, plan: made.plan, order: order)
             }
             jobs[job.id] = item.id
@@ -350,6 +357,9 @@ final class ExportService {
                     // Files and Share are the system's own sheets, shown over Exporting when the batch
                     // has ended, so the file waits in the batch's folder.
                     set(i, .done)
+                    // The file is written: the export book says so, and the library's filter on it
+                    // (Export status) reads this line (`LibraryFilterIndex`).
+                    ExportLedger.shared.record(frame: frame)
                     noted("saved", file: written.url)
                 case .failed(let why):
                     set(i, .notSaved(why))

@@ -98,7 +98,32 @@ extension Color { init(hexString: String) { self = .gray } }
         let clean = SettingsClip(groups: canonical, settings: source, sourceName: "/private/source.dng").transferable
         expect(clean.settings.frameSeed == FrameEdit.default.frameSeed && clean.settings.solvedEV == nil && clean.settings.geometry.isIdentity, "preset excludes seed/solve/crop")
         expect(clean.sourceName.isEmpty && !clean.settings.decode.lensCorrection, "preset excludes source name and lens")
-        expect(!ClipboardGroup.defaultSelection.contains(.filmEdgeAndDateBack), "edge/date opt-in")
+        expect(ClipboardGroup.defaultSelection.contains(.filmEdgeAndDateBack), "the sheet opens with the film edge ticked (2026-11-10)")
+        // A paste carries the switch that turns the film's colour off (the owner, 2026-11-10:
+        // "我没有使用胶片模拟…同步的也要这样"): it rides the film's own group, off means off, and what it
+        // remembers for the film coming back is what the paste just wrote.
+        var switched = source
+        switched.setAppliesFilm(false)
+        switched.filmEdge.active = true
+        switched.dateBack.active = false
+        let off = SettingsClip(groups: [.filmAndPaper], settings: switched, sourceName: "", sourceAspect: 1.5)
+        let toOn = off.applied(to: FrameEdit.default, picture: PixelSize(width: 300, height: 200))
+        expect(!toOn.appliesFilm, "the film stays off where it was copied off")
+        expect(toOn.filmOff?.filmEdgeActive == false && toOn.filmOff?.dateBackActive == false,
+               "only the film's group pasted: the switch records this frame's own edge and date")
+        expect(SettingsClip(groups: [.filmAndPaper], settings: source, sourceName: "", sourceAspect: 1.5)
+                .applied(to: toOn, picture: PixelSize(width: 300, height: 200)).appliesFilm,
+               "a film left on turns the film back on where it is pasted")
+        // The switch written *after* the edge group: with the film edge pasted too, it records the
+        // source's own switches; with that group unticked, the target's own.
+        let both = SettingsClip(groups: [.filmAndPaper, .filmEdgeAndDateBack], settings: switched,
+                                sourceName: "", sourceAspect: 1.5)
+            .applied(to: FrameEdit.default, picture: PixelSize(width: 300, height: 200))
+        expect(both.filmEdge.active && !both.dateBack.active && !both.appliesFilm,
+               "film edge pasted with the film, and still off")
+        expect(both.filmOff?.filmEdgeActive == true && both.filmOff?.dateBackActive == false,
+               "the edge group pasted too: the switch records the source's own")
+        expect(source.appliesFilm, "a source with the film on leaves its own switch untouched")
         expect(!ClipboardGroup.offered.contains(.exposure) && !ClipboardGroup.offered.contains(.filmEffects), "new UI omits aggregate legacy groups")
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("spk-presets-" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: folder) }

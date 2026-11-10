@@ -276,6 +276,9 @@ enum PanelNotes {
         /// A frame of a half-frame pair, developed from its RAW file: the two
         /// controls are that photograph's own, in the pair and by itself.
         case rawInPair
+        /// A finished picture on the finish path (the film's colour off): the
+        /// two controls are a chromatic gain on the picture, not a decode.
+        case finish
         /// A frame of a pair that has left the library.
         case gone
 
@@ -287,6 +290,7 @@ enum PanelNotes {
     static func whiteBalance(_ reach: SceneReach) -> [String] {
         switch reach {
         case .raw: [L("The RAW file's white balance, before the film."), L("RAW files only.")]
+        case .finish: [L("The finished picture's white balance, before the grain."), L("A colour shift on the picture: no sensor white point.")]
         case .notRAW: [L("This frame is not a RAW file: its camera set its white balance."), L("These reach a RAW file's decode only.")]
         case .previewCopy: [L("This frame's RAW is in Photos: its preview copy is developed."), L("These reach a RAW file's decode only.")]
         case .rawInPair: [L("This frame's own white balance, before the film."), L("The photograph by itself changes with it.")]
@@ -298,6 +302,9 @@ enum PanelNotes {
         switch reach {
         case .raw: [L("The RAW file's own lens correction: distortion and vignetting."), L("RAW files only.")]
         case .notRAW: [L("This frame is not a RAW file: it has no lens correction to apply."), L("RAW files only.")]
+        // A finished picture has no lens to correct: the film path's correction is
+        // its decode's, and the finish path runs none.
+        case .finish: [L("This frame is not a RAW file: it has no lens correction to apply."), L("RAW files only.")]
         case .previewCopy: [L("This frame's RAW is in Photos: its preview copy is developed."), L("RAW files only.")]
         case .rawInPair: [L("This frame's own lens correction: distortion and vignetting."), L("The photograph by itself changes with it.")]
         case .gone: [L("This frame is no longer in the library."), L("Replace or remove it under Frame.")]

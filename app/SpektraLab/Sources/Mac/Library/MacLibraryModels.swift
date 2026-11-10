@@ -301,6 +301,54 @@ struct MacImageDetail: Sendable, Equatable {
 
 // MARK: - the query and the facets
 
+/// How a star click filters: at least, at most, or exactly (Capture One's filter bar, and what the
+/// helper's `min_rating` / `max_rating` / `ratings[]` mean one for one).
+enum MacRatingRule: String, CaseIterable, Sendable {
+    case atLeast, atMost, exactly
+
+    /// The sign the Rating group's rows wear, so the rule is read without opening a menu.
+    var sign: String {
+        switch self {
+        case .atLeast: "≥"
+        case .atMost: "≤"
+        case .exactly: "="
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .atLeast: L("At Least")
+        case .atMost: L("At Most")
+        case .exactly: L("Exactly")
+        }
+    }
+}
+
+/// Whether a picture has been worked on: the helper's `has_edit`, which is "this frame has an edit
+/// SpektraLab keeps" — a slider that moved, a stock or a paper chosen. Capture One's "edit status".
+enum MacEditState: String, CaseIterable, Sendable {
+    case edited, unedited
+
+    var title: String {
+        switch self {
+        case .edited: L("Edited")
+        case .unedited: L("Unedited")
+        }
+    }
+}
+
+/// Whether a file has been written for a picture: the app's export book, never the library's.
+enum MacExportState: String, CaseIterable, Sendable {
+    case exported, notExported
+
+    var title: String {
+        switch self {
+        case .exported: L("Exported")
+        case .notExported: L("Not Exported")
+        }
+    }
+}
+
 /// What the grid shows of the selected collection: its order and the facets' ticks.
 struct MacImageQuery: Equatable, Sendable {
     enum Sort: String, CaseIterable, Sendable {
@@ -314,7 +362,11 @@ struct MacImageQuery: Equatable, Sendable {
     var text = ""
     /// Any of these star counts (0 is "no stars").
     var ratings: Set<Int> = []
+    /// The rule the Rating group's stars are read by. `atLeast` is the old `minimumRating`.
+    var ratingRule: MacRatingRule = .atLeast
     var minimumRating: Int?
+    /// The other bound: `atMost`'s stars, and half of a range. `nil` is no upper bound.
+    var maximumRating: Int?
     /// Any of these labels; 0 is "no label".
     var colorLabels: Set<Int> = []
     var kinds: Set<MacImage.FileKind> = []
@@ -327,13 +379,22 @@ struct MacImageQuery: Equatable, Sendable {
     var keywords: Set<String> = []
     /// Only pictures SpektraLab has made a frame of (opened in Develop).
     var developedOnly = false
+    /// Worked on or not (the helper's `has_edit`, and its `edited` facet).
+    var editStates: Set<MacEditState> = []
+    /// Written out by an export or not (the app's export book, `ExportLedger`).
+    var exportStates: Set<MacExportState> = []
+    /// Landscape, portrait or square (`MacAspect`, read from the row's pixel size).
+    var aspects: Set<MacAspect> = []
+    /// The person's flags (`PickFlags`, the app's own book).
+    var pickStates: Set<MacPickFlag> = []
     /// A folder's images and its subfolders' (Capture One shows a folder's own).
     var includeSubfolders = false
 
     var isFiltered: Bool {
-        !text.isEmpty || !ratings.isEmpty || minimumRating != nil || !colorLabels.isEmpty || !kinds.isEmpty
-            || capturedFrom != nil || capturedTo != nil || !cameras.isEmpty || !lenses.isEmpty || !keywords.isEmpty
-            || developedOnly
+        !text.isEmpty || !ratings.isEmpty || minimumRating != nil || maximumRating != nil || !colorLabels.isEmpty
+            || !kinds.isEmpty || capturedFrom != nil || capturedTo != nil || !cameras.isEmpty || !lenses.isEmpty
+            || !keywords.isEmpty || developedOnly || !editStates.isEmpty || !exportStates.isEmpty || !aspects.isEmpty
+            || !pickStates.isEmpty
     }
 
     /// Every tick off, the order kept.
@@ -366,6 +427,17 @@ struct MacFacets: Equatable, Sendable {
     var keywords: [Value<String>] = []
     /// Pictures SpektraLab has made a frame of, in this collection.
     var developed = 0
+    /// Worked on or not: the helper's `edited` facet, which counts the same filter it filters.
+    var edited = 0
+    var unedited = 0
+    /// Written out or not: the app's export book against this collection's rows (`LibraryFilterIndex`).
+    var exported = 0
+    var notExported = 0
+    /// The person's flags, from the app's own book.
+    var picked = 0
+    var rejected = 0
+    /// Landscape, portrait, square: the rows' own pixel sizes, counted here (the helper has no facet).
+    var aspects: [Value<String>] = []
     /// Files a folder sync found whose headers are still being read: their date, camera and lens fill in.
     var undescribed = 0
 

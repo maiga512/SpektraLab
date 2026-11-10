@@ -104,6 +104,12 @@ struct CurveTool: View {
         target == .adjust ? session.adjustments.curves : session.edit.params.sceneCurve
     }
 
+    /// The curves as the page opened them: double-tap's target — the Edit
+    /// curve's or the Decode curve's, whichever this panel edits.
+    private var originalCurves: CurveSet {
+        target == .adjust ? session.originalAdjustments.curves : session.originalSceneCurve
+    }
+
     /// An edit of them: Layer 2's at once, never a develop; Decode's a change of the develop.
     private func changeCurves(_ mutate: (inout CurveSet) -> Void) {
         switch target {
@@ -161,13 +167,17 @@ struct CurveTool: View {
                 ForEach(ParametricCurve.Region.allCases) { region in
                     EditSlider(title: region.title, value: Binding(get: { curves.parametric[channel][region] },
                         set: { v in changeCurves { $0.parametric[channel][region] = v } }),
-                        range: ParametricCurve.amountRange, detentAtRest: true, editing: editing)
+                        range: ParametricCurve.amountRange,
+                        rest: originalCurves.parametric[channel][region],
+                        detentAtRest: true, editing: editing)
                 }
                 ForEach(ParametricCurve.Split.allCases, id: \.self) { split in
                     EditSlider(title: L("Split") + " · " + [L("Shadows"), L("Midtones"), L("Highlights")][split.rawValue],
                         value: Binding(get: { curves.parametric[channel][split] * 100 },
                                        set: { v in changeCurves { $0.parametric[channel].setSplit(split, to: v / 100) } }),
-                        range: 0...100, rest: Double(split.rawValue + 1) * 25, detentAtRest: true, editing: editing)
+                        range: 0...100,
+                        rest: originalCurves.parametric[channel][split] * 100,
+                        detentAtRest: true, editing: editing)
                 }
             }
         }
@@ -309,14 +319,40 @@ extension CurveTool {
                 hovered = curve.fingerIndex(near: unit(at, geo.size), in: inner(geo.size), radius: 10)
             }
             .contextMenu {
-                if mode == .points, let i = hovered, curve.isDeletable(i) {
-                    Button(role: .destructive) {
+                // The menu of this curve (the owner, 2026-11-10): copy it to another channel
+                // through the clipboard, put it back, or put them all back. It stands on the
+                // plot wherever it is right-clicked — not only over a point, where the first
+                // version of this menu appeared and then showed nothing.
+                if mode == .points {
+                    Button {
+                        session.copiedCurve = curves[channel]
+                    } label: { Label(L("Copy Curve"), systemImage: "doc.on.doc") }
+                    if let copied = session.copiedCurve {
+                        Button {
+                            beginEditing()
+                            changeCurves { $0[channel] = copied }
+                            endEditing()
+                        } label: { Label(L("Paste Curve"), systemImage: "doc.on.clipboard") }
+                    }
+                    Button {
                         beginEditing()
-                        changeCurves { $0[channel].remove(i) }
+                        changeCurves { $0[channel] = .identity }
                         endEditing()
-                        if let s = selected { selected = s == i ? nil : (s > i ? s - 1 : s) }
-                        hovered = nil
-                    } label: { Label(L("Delete Point"), systemImage: "trash") }
+                    } label: { Label(L("Reset Curve"), systemImage: "arrow.uturn.backward") }
+                    Button {
+                        beginEditing()
+                        changeCurves { set in for ch in CurveChannel.allCases { set[ch] = .identity } }
+                        endEditing()
+                    } label: { Label(L("Reset All Curves"), systemImage: "arrow.counterclockwise") }
+                    if let i = hovered, curve.isDeletable(i) {
+                        Button(role: .destructive) {
+                            beginEditing()
+                            changeCurves { $0[channel].remove(i) }
+                            endEditing()
+                            if let s = selected { selected = s == i ? nil : (s > i ? s - 1 : s) }
+                            hovered = nil
+                        } label: { Label(L("Delete Point"), systemImage: "trash") }
+                    }
                 }
             }
             .gesture(DragGesture(minimumDistance: 0).onChanged { v in

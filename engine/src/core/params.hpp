@@ -190,6 +190,7 @@ struct OverscanParams {
     double fog = 1.0;                // edge fog from the spool, 0 = none
     double leaks = 0.0;              // spool light leaks, 0 = none
     std::string edge_text;           // the manufacturer's edge print; the app decides real vs display names
+    std::string edge_color = "stock";   // lettering ink: stock (the film's own) | yellow | red | green
     double f_number = 0.0;           // EXIF; sets the gate penumbra. 0 = unknown (f/5.6 assumed)
     // RFC-032 §29: the gate's shape family (auto = the camera seed picks one
     // that the format's real cameras have), and what the scan sees through
@@ -351,6 +352,15 @@ struct CameraParams {
     /// The Decode curve's table, as the wire carries it (`parse_scene_curve`).
     /// Native only; "" = off, and the node is not dispatched.
     std::string scene_curve;
+    /// **The finish path's white balance** (`scene_wb_temperature`, `scene_wb_tint`).
+    /// A file already exposed has no sensor white point to move, so on the
+    /// finish path the Decode white balance is a chromatic gain on the picture
+    /// itself — the Planckian colour of `temperature` over the colour of
+    /// 6500 K, with `tint` green↔magenta on top, scaled so 18 % grey keeps its
+    /// luminance. 6500 K and 0 are the identity. Native only, and the film path
+    /// never reads them: a RAW's white balance is its decode's.
+    double finish_white_balance_temperature = 6500.0;
+    double finish_white_balance_tint = 0.0;
 };
 
 struct EnlargerParams {
@@ -444,6 +454,20 @@ struct IOParams {
     GeometryParams geometry;
     double upscale_factor = 1.0;
     bool scan_film = false;
+    /// **The finish path** (`finish_only`): no film and no paper. The frame is
+    /// taken as the finished picture — a photograph already graded elsewhere,
+    /// handed to the engine for what only the engine makes: film grain at the
+    /// image's own density, and the film edge and date.
+    ///
+    /// The film *stock* still names the grain (particle area, sub-layer
+    /// curves, dmax, uniformity — all of it measured, none of it invented), and
+    /// the paper is not read at all. The colour is left alone: the picture
+    /// enters as the working space and leaves as the same values, so grain off
+    /// and no edge is the identity, to the float.
+    ///
+    /// A **shoot**-layer field: what is rendered is a different graph, not the
+    /// same one with different numbers.
+    bool finish_only = false;
     /// RFC-028: the Digital Intermediate. The negative is read in printing
     /// density with its base removed per wavelength, reversed on the film's
     /// own neutral curve, and written as Cineon-style log. It replaces the

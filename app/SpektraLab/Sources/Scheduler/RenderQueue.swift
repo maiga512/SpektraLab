@@ -181,6 +181,20 @@ final class RenderQueue {
     @ObservationIgnored var previewsGiveWayAtOnce = true
     @ObservationIgnored var previewsWaitForTheQueue = true
     @ObservationIgnored var previewsCoalesce = true
+    /// Work nobody is waiting on — a strip's card, a thumbnail, a neighbour's
+    /// render made ahead (`JobKind.isSpeculative`) — while a finger is on a
+    /// control: none starts, and one running gives way to the canvas edit at
+    /// once, not when a small job's `yieldThreshold` is up.
+    ///
+    /// A speculative job is a picture of an edit that has already moved on: it
+    /// would be cancelled a moment later anyway, and between the two it takes
+    /// the GPU and the engine's queue from the frame the person is dragging.
+    /// The cost is paid on the render after the finger lifts.
+    ///
+    /// Two switches, for the self-test to show what each is worth; the app never
+    /// turns either off.
+    @ObservationIgnored var holdsSpeculativeWhileDragging = true
+    @ObservationIgnored var speculativeGivesWayAtOnce = true
 
     let engine: any DevelopEngine
     @ObservationIgnored private(set) var costModel: CostModel
@@ -241,6 +255,11 @@ final class RenderQueue {
 
     // MARK: - asking for a render
 
+    /// How long a running canvas job is left once a newer edit asks for the same frame: a frame's
+    /// worth, so one that is about to land does, and a stale film-side develop does not hold the
+    /// newest up for its whole length. A print-side reprint (10-50 ms) fits inside it.
+    private static let supersedeGrace = 0.05
+
     @discardableResult
     func submit(_ job: RenderJob) -> UUID {
         if job.kind.isCanvas {
@@ -250,9 +269,11 @@ final class RenderQueue {
                 finish(old, .cancelled)
             }
             queue.removeAll { $0.kind.isCanvas && $0.frameID == job.frameID }
-            // One already running is given a reprint's time to finish.
+            // One already running is given a frame's time to finish, not a reprint's: a film-side
+            // develop is a tenth or two, and letting a stale one run out delays the picture the
+            // finger is waiting for by its whole length. A print-side reprint (10-50 ms) lands.
             if let r = running, r.job.kind.isCanvas, r.job.frameID == job.frameID {
-                supersede(r.job.id, after: costModel.estimate(job, mode: .whole).seconds)
+                supersede(r.job.id, after: min(costModel.estimate(job, mode: .whole).seconds, Self.supersedeGrace))
             }
         }
         if job.kind == .importDevelop {
@@ -284,7 +305,13 @@ final class RenderQueue {
         // Anything more urgent than what is running: the running job gives way — a strip's card at once.
         // (A card does not stop the library's develop under way: it is next, and that develop is a moment.)
         if let r = running, r.job.kind.priority > job.kind.priority, !(job.kind == .stockPreview && r.job.kind == .importDevelop) {
-            yield(r, to: "a more urgent job", force: r.job.kind == .stockPreview && previewsGiveWayAtOnce)
+            // A strip's card gives way at once as it always has. Work nobody is waiting on gives way
+            // at once when the canvas asks (`JobKind.isSpeculative`): the finger is waiting on that
+            // job, and the made-ahead picture is of an edit that has already moved on.
+            var force = false
+            if r.job.kind == .stockPreview { force = previewsGiveWayAtOnce }
+            else if r.job.kind.isSpeculative, job.kind.isCanvas { force = speculativeGivesWayAtOnce }
+            yield(r, to: "a more urgent job", force: force)
         }
         pump()
         return job.id
@@ -436,6 +463,15 @@ final class RenderQueue {
                 continue
             }
             if job.kind == .stockPreview, othersQueued, previewsWaitForTheQueue {
+                if waits[job.id]?.last != .queued { waits[job.id, default: []].append(.queued) }
+                update(job.id) { $0.state = .waiting(.queued); $0.mode = nil }
+                continue
+            }
+            // A finger on a control: nothing speculative starts (`JobKind.isSpeculative`). A card
+            // or a made-ahead render is a picture of an edit that has already moved on, and it
+            // would be cancelled a moment later anyway — meanwhile it takes the GPU from the frame
+            // being dragged. It keeps its place and starts when the finger lifts.
+            if frontend.isDragging, job.kind.isSpeculative, holdsSpeculativeWhileDragging {
                 if waits[job.id]?.last != .queued { waits[job.id, default: []].append(.queued) }
                 update(job.id) { $0.state = .waiting(.queued); $0.mode = nil }
                 continue

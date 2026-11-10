@@ -92,7 +92,7 @@ struct TickRuler: View {
                 live = raw
                 let landed = snapped(raw)
                 if landed != value { value = landed }
-            }, onEnded: {
+            }, onEnded: { _ in
                 if anchor != nil {
                     withAnimation(calm ? nil : .easeOut(duration: 0.12)) { live = nil }
                     onEditingChanged(false)

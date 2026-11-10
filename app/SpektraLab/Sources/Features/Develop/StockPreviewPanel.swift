@@ -57,21 +57,26 @@ struct StockPreviewPanel: View {
             + toggle + 3 * spacing
     }
 
-    /// Apply Film Emulation (`FrameEdit.appliesFilm`): off, the film and the paper are greyed and the
-    /// frame is Apple's own decode. A half-frame pair is a piece of film: it has no switch.
+    /// Apply Film Emulation (`FrameEdit.appliesFilm`): off, the paper is greyed and the frame keeps
+    /// its own colour. **The film stays live**: with the colour off it is the grain's source
+    /// (`FrameEdit.usesFinishPath`), and the edge and the date are still drawn. A frame with no
+    /// grain, no edge and no date is Apple's own decode, as it always was. A half-frame pair is a
+    /// piece of film: it has no switch.
     private var appliesFilm: Bool { session.edit.appliesFilm }
 
     var body: some View {
         VStack(spacing: compact ? 6 : 10) {
             // A foldable strip greys its pill and cards itself: its fold still works with the film off.
-            Group { strips }.rowEnabled(appliesFilm || foldable)
+            Group { strips }.rowEnabled(true)
             if let decode {
                 decode
             } else {
                 EditSlider(title: L("Film Exposure"), value: session.binding(\.params.exposureCompensationEV),
-                           range: -8...8, text: { Fmt.signed($0) + " EV" }, detentAtRest: true, editing: session.editing(.shoot))
+                           range: -8...8, rest: session.originalExposure, text: { Fmt.signed($0) + " EV" }, detentAtRest: true,
+                           editing: session.editing(.shoot))
                     .padding(.horizontal, 16)
-                    .rowEnabled(appliesFilm)
+                    // A gain on the picture with the film off (`run_finish`).
+                    .rowEnabled(true)
             }
             if session.pair == nil { filmSwitch }
             if let status { StatusFoot(status: status) }
@@ -111,12 +116,12 @@ struct StockPreviewPanel: View {
     @ViewBuilder private var strips: some View {
             if rows > 1 || foldable {
                 HStack(spacing: 8) {
-                    filmPill.rowEnabled(appliesFilm || !foldable)
+                    filmPill.rowEnabled(true)
                     Spacer(minLength: 0)
                     if let crop { cropButton(crop).rowEnabled(appliesFilm || !foldable) }
                     if foldable { foldButton(L("Film"), folded: filmFolded) { prefs.filmRowCollapsed.toggle() } }
                 }.padding(.horizontal, 16)
-                if !filmFolded { filmRow.rowEnabled(appliesFilm || !foldable) }
+                if !filmFolded { filmRow.rowEnabled(true) }
                 HStack {
                     paperPill.rowEnabled(appliesFilm || !foldable)
                     Spacer(minLength: 0)

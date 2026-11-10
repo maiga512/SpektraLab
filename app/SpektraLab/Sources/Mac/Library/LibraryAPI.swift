@@ -796,6 +796,11 @@ struct LibraryWatchedFolder: Decodable, Sendable, Equatable, Identifiable {
 /// What the app read of a file's header, for `images.describe` (the `images.add` metadata keys).
 struct LibraryDescription: Sendable, Equatable {
     var image: String
+    /// The rating and colour tag the file itself carries (a camera's, Lightroom's, Capture One's):
+    /// read from its XMP, or from the `.xmp` beside it. Not sent with `images.describe` — the helper
+    /// takes no rating there — the import and the describe apply it with `meta.set`.
+    var rating: Int?
+    var colorTag: Int?
     var capturedLocal: String?
     var width: Int?
     var height: Int?
@@ -1064,6 +1069,18 @@ struct LibraryClient: Sendable {
         ])
     }
 
+    /// The same, for rows whose variant the caller does not hold (an add's or a describe's).
+    func setMetaImages(_ library: String, images: [String], rating: Int?? = nil, colorTag: Int?? = nil) async throws {
+        func value(_ v: Int??) -> LibraryValue? {
+            guard let v else { return nil }
+            return v.map { .int($0) } ?? .null
+        }
+        _ = try await call("meta.set", LibraryAck.self, [
+            ("library", .string(library)), ("images", .strings(images)),
+            ("rating", value(rating)), ("color_tag", value(colorTag)),
+        ])
+    }
+
     func newVariant(_ library: String, image: String, from variant: String?) async throws -> LibraryNewVariant {
         try await call("variant.create", LibraryNewVariant.self, [
             ("library", .string(library)), ("image", .string(image)), ("from_variant", variant.map { .string($0) }),
@@ -1243,6 +1260,8 @@ struct LibraryQuery: Sendable, Equatable {
     var collection: String?
     var recursive = true
     var minRating: Int?
+    /// The other bound of the stars: `max_rating`, for "at most" and for a range (`min_rating` too).
+    var maxRating: Int?
     var colorTags: [Int] = []
     var text = ""
     /// SpektraLab's own filter: developed (has an edit) or not.
@@ -1267,7 +1286,8 @@ struct LibraryQuery: Sendable, Equatable {
     var includeTrashed = false
 
     var isFiltered: Bool {
-        minRating != nil || !colorTags.isEmpty || !text.isEmpty || hasEdit != nil || !ratings.isEmpty || !kinds.isEmpty
+        minRating != nil || maxRating != nil || !colorTags.isEmpty || !text.isEmpty || hasEdit != nil
+            || !ratings.isEmpty || !kinds.isEmpty
             || !cameraModels.isEmpty || !lenses.isEmpty || !keywords.isEmpty || capturedFrom != nil || capturedTo != nil
             || images != nil
     }
@@ -1276,6 +1296,7 @@ struct LibraryQuery: Sendable, Equatable {
         func maybe(_ s: String?) -> LibraryValue { s.map { .string($0) } ?? .null }
         var filter: [(String, LibraryValue)] = []
         if let minRating { filter.append(("min_rating", .int(minRating))) }
+        if let maxRating { filter.append(("max_rating", .int(maxRating))) }
         if !ratings.isEmpty { filter.append(("ratings", .array(ratings.map { .int($0) }))) }
         if !colorTags.isEmpty { filter.append(("color_tags", .array(colorTags.map { .int($0) }))) }
         if !kinds.isEmpty { filter.append(("kinds", .strings(kinds))) }

@@ -78,6 +78,10 @@ enum Reference {
         return l <= m ? 0.5 * l / m : 0.5 + 0.5 * (l - m) / (1 - m)
     }
     static func pw(_ c: SIMD3<Float>, _ p: Float) -> SIMD3<Float> { SIMD3(powf(c.x, p), powf(c.y, p), powf(c.z, p)) }
+    static func smoothstep(_ a: Float, _ b: Float, _ x: Float) -> Float {
+        let t = min(max((x - a) / (b - a), 0), 1)
+        return t * t * (3 - 2 * t)
+    }
     static func vibrance(_ c: SIMD3<Float>, _ v: Float) -> SIMD3<Float> {
         let mx = max(c.x, c.y, c.z), mn = min(c.x, c.y, c.z)
         let sat: Float = mx > 1e-4 ? min(max((mx - mn) / mx, 0), 1) : 0
@@ -115,10 +119,24 @@ enum Reference {
         if u.exposureGain != 1 { c = pw(pw(simd_max(c, .zero), 2.2) * u.exposureGain, 1 / 2.2) }
         if u.contrast != 0 { let k = 1 + u.contrast * 1.2; c = (c - u.midGrey) * k + u.midGrey }
         if u.brightness != 0 { c = pw(simd_max(c, .zero), 1 / (1 + u.brightness * 0.8)) }
+        // Steps 3-4, mirrored from Layer2Kernel.l2Tone (2026-11-10): four curve shapes —
+        // a multiplicative shadow region, a white-mixed highlight region, and the black and
+        // white corners raised by an absolute little. Not shifts, not pow expansions.
         var l = position(luma(c), u.midGrey)
-        if u.shadows != 0 { var w = 1 - l; w = w * w; c += u.shadows * 0.25 * w * (1 - c) }
-        if u.highlights != 0 { let w = l * l; c += u.highlights * 0.25 * w * (u.highlights > 0 ? (1 - c) : c) }
-        c = (c - u.blackPoint) / max(1 - u.blackPoint - u.whitePoint, 0.05)
+        let wLo = 1 - smoothstep(0, 0.5, l), wHi = smoothstep(0.5, 1, l)
+        if u.shadows != 0 { c = c * (1 + 1.0 * u.shadows * wLo) }
+        if u.highlights != 0 {
+            let k = 1 + 0.6 * u.highlights * wHi
+            c = 1 - pw(simd_max(1 - c, .zero), k)
+        }
+        if u.blackPoint != 0 {
+            let b = -u.blackPoint
+            if b > 0 { c = c + (0.10 * b * wLo) } else { c = c * (1 + 1.0 * b * wLo) }
+        }
+        if u.whitePoint != 0 {
+            let w = u.whitePoint
+            if w > 0 { c = c + (1 - c) * (1.3 * w * wHi) } else { c = c * (1 + 0.4 * w * wHi) }
+        }
         l = luma(c)
         if u.saturation != 1 { c = l + (c - l) * u.saturation }
         var moved = false
