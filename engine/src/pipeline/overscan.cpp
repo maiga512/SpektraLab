@@ -716,7 +716,7 @@ bool Pipeline::overscan_layout(uint32_t frame_w, uint32_t frame_h, std::string& 
     // than the measured one. `group_for` below carries whatever is here into the drawing.
     {
         const std::string& ink = params_.film_render.overscan.edge_color;
-        static const double yellow[3] = {1.00, 0.78, 0.10};
+        static const double yellow[3] = {1.00, 0.80, 0.05};   // a touch more saturated (2026-11-10)
         static const double red[3]    = {1.00, 0.28, 0.03};   // 橙红: orange, not朱红 (the owner, 2026-11-10)
         static const double green[3]  = {0.04, 1.00, 0.01};   // 荧光绿: the neon green of a test strip
         static const double blue[3]   = {0.05, 0.35, 1.00};   // 亮蓝: bright and saturated
@@ -733,6 +733,7 @@ bool Pipeline::overscan_layout(uint32_t frame_w, uint32_t frame_h, std::string& 
             // 并且还亮一点", "荧光绿…饱和度比较高", "亮一点的蓝"). These are tuned against a rendered
             // strip (`tests/finish_checks`' render), not derived.
             double k = cy > 1e-6 ? luma / cy : 1.0;
+            if (ink == "yellow") k *= 4.0;   // 一点点亮 (the owner, 2026-11-10)
             if (ink == "red") k *= 6.5;
             if (ink == "green") k *= 9.0;
             if (ink == "blue") k *= 6.5;
