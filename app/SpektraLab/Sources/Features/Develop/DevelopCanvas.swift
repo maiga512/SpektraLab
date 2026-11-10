@@ -256,9 +256,9 @@ struct DevelopCanvas: View {
             }
             #if DEBUG
             .onAppear {
-                let long = CGFloat(max(frame.previewSize.width, frame.previewSize.height)), fitLong = max(fit.width, fit.height)
-                NSLog("[canvas] fit %.0fx%.0f pt, %.2f px/pt (UIKit says %.2f): preview %.0f px, the full render past %.2fx (read at UIKit's scale: %.2fx)",
-                      fit.width, fit.height, pixelsPerPoint, displayScale, long,
+                let long = CGFloat(frame.previewDevelopLongEdge(edit)), fitLong = max(fit.width, fit.height)
+                NSLog("[canvas] fit %.0fx%.0f pt, %.2f px/pt (UIKit says %.2f): preview %.0f px, decoded at %.0f, the full render past %.2fx (read at UIKit's scale: %.2fx)",
+                      fit.width, fit.height, pixelsPerPoint, displayScale, CGFloat(frame.previewSize.longEdge), long,
                       max(previewOverFit(fit: fit), 1) * 1.02, max(long / max(fitLong * displayScale * cropZoom, 1), 1) * 1.02)
             }
             #endif
@@ -516,7 +516,8 @@ struct DevelopCanvas: View {
     /// The preview copy's pixels over the fit's, for the cut shown: the zoom
     /// at which one of its pixels is one of the screen's.
     private func previewOverFit(fit: CGSize) -> CGFloat {
-        let px = CGFloat(max(frame.previewSize.width, frame.previewSize.height))
+        // The develop's decode: a cropped frame's is larger than its preview (`previewDevelopLongEdge`).
+        let px = CGFloat(frame.previewDevelopLongEdge(edit))
         let fitPx = max(fit.width, fit.height) * max(pixelsPerPoint, 1)
         return px / max(fitPx * cropZoom, 1)
     }
@@ -535,7 +536,7 @@ struct DevelopCanvas: View {
     private var fullOverPreview: CGFloat {
         #if SPK_ENGINE
         guard fullView != nil, FullView.hasMore(frame), frame.previewSize.longEdge > 0 else { return 1 }
-        let own = CGFloat(frame.originalSize.longEdge) / CGFloat(frame.previewSize.longEdge)
+        let own = CGFloat(frame.originalSize.longEdge) / CGFloat(max(frame.previewDevelopLongEdge(edit), 1))
         let cap = min(1, (DevicePolicy.current.developCapMegapixels / max(frame.originalSize.megapixels, 0.01)).squareRoot())
         return max(1, own * CGFloat(cap))
         #else

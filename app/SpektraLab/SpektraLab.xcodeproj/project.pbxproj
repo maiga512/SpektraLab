@@ -22,6 +22,7 @@
 		043BB7142F2099DF7105656A /* MacLibraryGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacLibraryGrid.swift; sourceTree = "<group>"; };
 		0461DDEBA01EAC413228AEB0 /* PairKeeping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairKeeping.swift; sourceTree = "<group>"; };
 		047E89F96AF048AC3ED1175B /* LightTableShaders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 779642BF4056276DC3EEBFDB /* LightTableShaders.swift */; };
+		0484872E1166DE3A38DED89E /* MacDropOffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C69B70207FD05E71EF604F86 /* MacDropOffer.swift */; };
 		04DE328DFED1D62DD2F783F0 /* MacLibraryEntryCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacLibraryEntryCheck.swift; sourceTree = "<group>"; };
 		054B31A9712678F4D236936D /* Adjustments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Adjustments.swift; sourceTree = "<group>"; };
 		064D5BF0C99DC36F7E31AC62 /* FilmEdgeSnapshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D1D13338B335BA4D9CAE25 /* FilmEdgeSnapshots.swift */; };
@@ -178,6 +179,7 @@
 		372B02868E392477EDB043A3 /* Import */ = {
 			isa = PBXGroup;
 			children = (
+				C69B70207FD05E71EF604F86 /* MacDropOffer.swift */,
 				18CA00C33D1E68E05087E8CD /* MacImportCheck.swift */,
 				27B2019A7C8009687F3B163E /* MacImportDrop.swift */,
 				11F06B4A285A40D2CCF27137 /* MacImportDropCheck.swift */,
@@ -588,6 +590,7 @@
 				3FD36877CC6E4E769A977BE9 /* MacExportCheck.swift */,
 				48358155B913CE5C93A04BD8 /* MacExportPage.swift */,
 				C24ECB06AF3EAC6AFB855825 /* MacExportRun.swift */,
+				0484872E1166DE3A38DED89E /* MacDropOffer.swift */,
 				5899CD471BA6156875091453 /* MacImportCheck.swift */,
 				85184072DF0F2A41EB70F6A1 /* MacImportDrop.swift */,
 				5AF1121C6548FC6C8CD816C3 /* MacImportDropCheck.swift */,
@@ -1393,6 +1396,7 @@
 		C6059218083541AF4F23B08D /* DiagnosticsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsPage.swift; sourceTree = "<group>"; };
 		C60E54EB40A39EA165BF0D64 /* FeatureFlags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureFlags.swift; sourceTree = "<group>"; };
 		C65BF85E66C547F8282A9FAC /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; name = Localizable.xcstrings; path = Resources/Localizable.xcstrings; sourceTree = "<group>"; };
+		C69B70207FD05E71EF604F86 /* MacDropOffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacDropOffer.swift; sourceTree = "<group>"; };
 		C6D25646B8BFF02EC94EB865 /* HostCut.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDA5DAFC2CC8326D51F5AAD6 /* HostCut.swift */; };
 		C6F8C5EF24848BD2CB44C400 /* RecipePages.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ECB2203A26E4613F850E069 /* RecipePages.swift */; };
 		C75666A906ECECB3B24031AB /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = Resources/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };

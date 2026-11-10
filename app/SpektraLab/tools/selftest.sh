@@ -141,6 +141,9 @@ swiftc -O -parse-as-library -o "$out/history_selftest" \
   "$src/Model/EditHistory.swift" "$here/tools/history_selftest.swift"
 swiftc -O -parse-as-library -o "$out/strip_source_selftest" \
   "$src/Services/StripSource.swift" "$here/tools/strip_source_selftest.swift"
+# 松手即导入: which drags the window answers, and that its note goes however a drag ends (2026-11-09).
+swiftc -O -parse-as-library -o "$out/drop_selftest" \
+  "$src/Mac/Import/MacDropOffer.swift" "$here/tools/drop_selftest.swift" 2> "$out/drop-selftest-build.log" || { grep -E "error" "$out/drop-selftest-build.log" | head -30; exit 1; }
 # The window's layout and the column's split across it.
 swiftc -O -parse-as-library -o "$out/window_selftest" \
   "$src/App/WindowLayoutRule.swift" "$here/tools/window_selftest.swift"
@@ -161,6 +164,7 @@ status=0
 "$out/strip_source_selftest" || status=1
 "$out/update_selftest" || status=1
 "$out/window_selftest" || status=1
+"$out/drop_selftest" || status=1
 "$out/supporters_selftest" "$@" || status=1
 "$out/agent_selftest" "$@" || status=1
 "$out/history_selftest" || status=1

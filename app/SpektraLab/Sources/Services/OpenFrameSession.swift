@@ -917,7 +917,7 @@ final class OpenFrameSession {
         guard let darkroom, darkroom.makesPictures else { return }
         latitude = .waiting
         darkroom.closeEditing(frameID)
-        if let frame, let want = darkroom.stamp(frame, edit: frame.edit, longEdge: frame.previewSize.longEdge),
+        if let frame, let want = darkroom.stamp(frame, edit: frame.edit, longEdge: frame.previewDevelopLongEdge(frame.edit)),
            frame.developed?.stamp != want {
             if let developed, developed.stamp == want, let developedImage {
                 darkroom.keep(developedImage, frameID: frameID, stamp: want)
@@ -984,7 +984,7 @@ final class OpenFrameSession {
         // The page's first develop opens the frame: its decode is part of the
         // job, priced by the original's size (`RenderJob.original`). So does
         // a develop from other pixels than the one before it.
-        let source = darkroom?.sourceKey(frame, edit: target, longEdge: frame.previewSize.longEdge)
+        let source = darkroom?.sourceKey(frame, edit: target, longEdge: frame.previewDevelopLongEdge(target))
         let opens = opening || (source != nil && (source != askedSource || source != renderedSource))
         let job = RenderJob(frameID: frameID,
                             kind: opens || layers.contains(.shoot) ? .canvasDevelop : .canvasReprint,
@@ -994,12 +994,14 @@ final class OpenFrameSession {
                             decodesOriginal: opens, original: opens ? (darkroom?.openSize(frame, edit: target) ?? frame.originalSize) : nil,
                             // A half-frame pair's frames that print as their own: each a reprint
                             // of the same negative, cut in along its hole (`PrintLayers.swift`).
-                            printLayers: darkroom?.printLayers(frame, edit: target) ?? 0)
+                            printLayers: darkroom?.printLayers(frame, edit: target) ?? 0,
+                            // A cropped frame's decode is larger than its canvas (`previewDevelopLongEdge`).
+                            opens: frame.previewDevelopOpens(target))
         // The frame's file, its decode and its whole wire, as they are now: the
         // engine asks for them on its own queue. A frame with nothing to develop
         // from (a demo picture, an original that is away) is not submitted.
         if let darkroom, !darkroom.prepare(job, frame: frame, edit: target, purpose: .canvas,
-                                           longEdge: frame.previewSize.longEdge) { return }
+                                           longEdge: frame.previewDevelopLongEdge(target)) { return }
         let id = scheduler.submit(job)
         let piece = frame.pair
         asked = (id, target, piece)

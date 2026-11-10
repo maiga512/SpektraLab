@@ -149,7 +149,7 @@ final class EngineRouter {
     /// all the same (it is developed when asked once the disk is back, `prepare` refusing meanwhile).
     func needsDevelop(_ frame: LibraryFrame) -> Bool {
         guard let kept = frame.shownDevelop else { return true }
-        guard let stamp = stamp(frame, edit: frame.edit, longEdge: frame.previewSize.longEdge, evenAway: true) else { return false }
+        guard let stamp = stamp(frame, edit: frame.edit, longEdge: frame.previewDevelopLongEdge(frame.edit), evenAway: true) else { return false }
         return kept.stamp != stamp
     }
 
@@ -187,18 +187,20 @@ final class EngineRouter {
     /// the RAW's proxy is not here to stand for it (`RawProxy`). Only an
     /// export, or a job larger than the preview, needs the original itself.
     func needsBringing(_ frame: LibraryFrame, edit: FrameEdit) -> Bool {
-        isAway(frame) && !hasProxy(frame, decode: edit.decode)
+        isAway(frame) && !hasProxy(frame, decode: edit.decode, longEdge: frame.previewDevelopLongEdge(edit))
     }
 
     // MARK: a RAW's proxy
 
     /// The proxy a job of `frame` at its preview size reads or makes, decoded
     /// with `decode`: nil for anything but a RAW photograph developed from its
-    /// own file, and where nothing is kept on disk.
-    func proxy(_ frame: LibraryFrame, decode: DecodeSettings) -> RawProxy.Ask? {
-        guard frame.developsFromRAW, !frame.isPair, frame.previewSize.longEdge > 0,
+    /// own file, and where nothing is kept on disk. `longEdge` is the job's
+    /// decode (`LibraryFrame.previewDevelopLongEdge`: a cropped frame's is
+    /// larger than its preview); nil is the frame's own edit's.
+    func proxy(_ frame: LibraryFrame, decode: DecodeSettings, longEdge: Int? = nil) -> RawProxy.Ask? {
+        let edge = longEdge ?? frame.previewDevelopLongEdge(frame.edit)
+        guard frame.developsFromRAW, !frame.isPair, edge > 0,
               let folder = originals?.copies.proxyFolder, let source = frame.developSource else { return nil }
-        let edge = frame.previewSize.longEdge
         return RawProxy.Ask(url: folder.appendingPathComponent(RawProxy.fileName(frame: frame.id, source: source,
                                                                                  decode: decode, longEdge: edge)),
                             longEdge: edge)
@@ -209,12 +211,14 @@ final class EngineRouter {
     /// otherwise the original's (`decodeSize`), which the first decode reads
     /// and makes the proxy from.
     func openSize(_ frame: LibraryFrame, edit: FrameEdit) -> PixelSize {
-        hasProxy(frame, decode: edit.decode) ? frame.previewSize : decodeSize(frame)
+        let edge = frame.previewDevelopLongEdge(edit)
+        guard hasProxy(frame, decode: edit.decode, longEdge: edge) else { return decodeSize(frame) }
+        return edge == frame.previewSize.longEdge ? frame.previewSize : frame.originalSize.scaled(toLongEdge: edge)
     }
 
-    /// Whether `frame`'s proxy for `decode` is here to read.
-    func hasProxy(_ frame: LibraryFrame, decode: DecodeSettings) -> Bool {
-        guard let ask = proxy(frame, decode: decode), let copies = originals?.copies else { return false }
+    /// Whether `frame`'s proxy for `decode` (at `longEdge`, nil: its own edit's) is here to read.
+    func hasProxy(_ frame: LibraryFrame, decode: DecodeSettings, longEdge: Int? = nil) -> Bool {
+        guard let ask = proxy(frame, decode: decode, longEdge: longEdge), let copies = originals?.copies else { return false }
         return copies.hasProxy(ask.url)
     }
 
@@ -308,7 +312,7 @@ final class EngineRouter {
         guard let host else { return true }       // the simulation asks for nothing
         // A job at the preview size reads the RAW's proxy where it is here, the original or not.
         // Apple's decode reads the file itself: a proxy is the engine's decode.
-        let proxy = edit.usesEngine ? longEdge.flatMap { edge in self.proxy(frame, decode: edit.decode).flatMap { edge <= $0.longEdge ? $0 : nil } } : nil
+        let proxy = edit.usesEngine ? longEdge.flatMap { edge in self.proxy(frame, decode: edit.decode, longEdge: edge).flatMap { edge <= $0.longEdge ? $0 : nil } } : nil
         guard let source = frame.developSource,
               isHere(frame) || proxy.map({ originals?.copies.hasProxy($0.url) ?? false }) == true else { return false }
         let wire = wire(frame, edit: edit, longEdge: longEdge)

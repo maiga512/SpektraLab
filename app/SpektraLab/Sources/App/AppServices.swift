@@ -688,12 +688,14 @@ final class AppServices {
         let job = RenderJob(frameID: frame.id, kind: kind, tier: .preview, canvas: frame.canvas(frame.edit),
                             what: StockCatalog.shared.pairText(frame.edit.params),
                             decodesOriginal: true, original: darkroom.openSize(frame, edit: frame.edit),
-                            printLayers: darkroom.printLayers(frame, edit: frame.edit))
+                            printLayers: darkroom.printLayers(frame, edit: frame.edit),
+                            // A cropped frame's decode is larger than its canvas (`previewDevelopLongEdge`).
+                            opens: frame.previewDevelopOpens(frame.edit))
         // The frame's file, its decode and its whole wire, as they are now. A
         // frame the engine has nothing to develop from — a demo picture, an
         // original that is away — is not queued: it keeps the picture it has.
         guard darkroom.prepare(job, frame: frame, edit: frame.edit, purpose: .keep,
-                               longEdge: frame.previewSize.longEdge) else { return nil }
+                               longEdge: frame.previewDevelopLongEdge(frame.edit)) else { return nil }
         library.update(frame.id) { $0.develop = .queued }
         let id = scheduler.submit(job)
         Task { [weak self] in
