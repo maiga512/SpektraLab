@@ -3873,28 +3873,6 @@
         }
       }
     },
-    "Capture One Style" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Capture One スタイル"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Capture One 风格"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Capture One 風格"
-          }
-        }
-      }
-    },
     "Capture One is writing to it: read again in a moment" : {
       "localizations" : {
         "ja" : {
@@ -10403,28 +10381,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "直方圖"
-          }
-        }
-      }
-    },
-    "Histogram style" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ヒストグラムのスタイル"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "直方图样式"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "直方圖樣式"
           }
         }
       }
@@ -20017,28 +19973,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SpektraLab 海報"
-          }
-        }
-      }
-    },
-    "SpektraLab Style" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SpektraLab スタイル"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SpektraLab 风格"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SpektraLab 風格"
           }
         }
       }

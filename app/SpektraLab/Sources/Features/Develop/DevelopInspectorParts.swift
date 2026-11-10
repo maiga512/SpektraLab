@@ -97,7 +97,6 @@ final class DevelopPanelPrefs {
     static let shared = DevelopPanelPrefs()
 
     @ObservationIgnored private let defaults: UserDefaults
-    private static let styleKey = "develop.wide.histogram.style"
     private static let histogramFoldKey = "develop.wide.histogram.collapsed"
     private static let filmFoldKey = "develop.wide.filmRow.collapsed"
     private static let paperFoldKey = "develop.wide.paperRow.collapsed"
@@ -106,7 +105,6 @@ final class DevelopPanelPrefs {
     private static let dateBackFoldKey = "develop.wide.dateBack.collapsed"
     private static let enlargerFoldKey = "develop.wide.enlarger.collapsed"
 
-    var histogramStyle: HistogramStyle { didSet { defaults.set(histogramStyle.rawValue, forKey: Self.styleKey) } }
     var histogramCollapsed: Bool { didSet { defaults.set(histogramCollapsed, forKey: Self.histogramFoldKey) } }
     var filmRowCollapsed: Bool { didSet { defaults.set(filmRowCollapsed, forKey: Self.filmFoldKey) } }
     var paperRowCollapsed: Bool { didSet { defaults.set(paperRowCollapsed, forKey: Self.paperFoldKey) } }
@@ -120,7 +118,6 @@ final class DevelopPanelPrefs {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        histogramStyle = defaults.string(forKey: Self.styleKey).flatMap(HistogramStyle.init(rawValue:)) ?? .captureOne
         histogramCollapsed = defaults.bool(forKey: Self.histogramFoldKey)
         filmRowCollapsed = defaults.bool(forKey: Self.filmFoldKey)
         paperRowCollapsed = defaults.bool(forKey: Self.paperFoldKey)

@@ -271,8 +271,6 @@ enum MacDriver {
             ("surface.edit", { m in page(m) { $0.show(.edit) } }),
             ("step.film", { m in page(m) { $0.pageNavigation.select(.filmAndPaper); $0.pageNavigation.panelFolded = false } }),
             ("step.format", { m in page(m) { $0.pageNavigation.select(.format); $0.pageNavigation.panelFolded = false } }),
-            ("histogram.c1", { _ in DevelopPanelPrefs.shared.histogramStyle = .captureOne }),
-            ("histogram.spektralab", { _ in DevelopPanelPrefs.shared.histogramStyle = .spektraLab }),
             ("histogram.fold", { _ in DevelopPanelPrefs.shared.histogramCollapsed = true }),
             ("histogram.open", { _ in DevelopPanelPrefs.shared.histogramCollapsed = false }),
             ("rows.film.fold", { _ in DevelopPanelPrefs.shared.filmRowCollapsed = true }),

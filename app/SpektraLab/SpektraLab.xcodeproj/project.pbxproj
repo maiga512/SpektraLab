@@ -190,6 +190,7 @@
 			path = Import;
 			sourceTree = "<group>";
 		};
+		372BE27EBC5EDE2E7094F38F /* HistogramPlot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistogramPlot.swift; sourceTree = "<group>"; };
 		37C292D2FE3F407F8C4FB677 /* Supporters.swift in Sources */ = {isa = PBXBuildFile; fileRef = F154C6E8C9F0FCEB3736F12A /* Supporters.swift */; };
 		3809D960515CD2406FA72FF5 /* Gallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1004577F499CCD09FBEEBE81 /* Gallery.swift */; };
 		38D84B32A6872C0671B75E42 /* StockCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA61A4EC609AB88F353095D4 /* StockCards.swift */; };
@@ -522,6 +523,7 @@
 				74DFD5E1C11C4B31AAF5BB9D /* FilmEdgeColumn.swift */,
 				CA3994324F443EDE9D71CA5F /* FlowDialogLayout.swift */,
 				0F9A1452D64CDD2461BF4B31 /* HistogramPanel.swift */,
+				A761459EC0D07598A53DAC7C /* HistogramPlot.swift */,
 				C424F12D313DD8AF47CDF923 /* PadDevelopPage.swift */,
 				902EC57EF384C3F937548EEE /* PairOriginalPreview.swift */,
 				909280D8F6F80DD1B075485E /* PairPanels.swift */,
@@ -1022,6 +1024,7 @@
 				4C7EBAD0B4F86EBFCDE1B7FD /* FilmEdgeColumn.swift */,
 				EB58C4EC6CA468A386B15371 /* FlowDialogLayout.swift */,
 				DFD5DC2E22462390BE2E041F /* HistogramPanel.swift */,
+				372BE27EBC5EDE2E7094F38F /* HistogramPlot.swift */,
 				610C107A887F0E653E80D32D /* PadDevelopPage.swift */,
 				1AEF1053C986EBC89A174A4A /* PairOriginalPreview.swift */,
 				5BEAB01098E89E57E5BAA040 /* PairPanels.swift */,
@@ -1188,6 +1191,7 @@
 		A671D8956FD4BE6A2CD7FC6E /* MacCatalogActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacCatalogActions.swift; sourceTree = "<group>"; };
 		A69BBC1028968E7A9B0A64F3 /* MacLibraryMove.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27E074CEB9973C5386D30499 /* MacLibraryMove.swift */; };
 		A6CB5F773280E9A8A0AA89B6 /* UpdateCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30D38BF4C37498062174B5C /* UpdateCheck.swift */; };
+		A761459EC0D07598A53DAC7C /* HistogramPlot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 372BE27EBC5EDE2E7094F38F /* HistogramPlot.swift */; };
 		A7E26307015F20083A8C7C57 /* StockPairPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockPairPicker.swift; sourceTree = "<group>"; };
 		A81F05AFB73E67F1614E3493 /* LightTableFrames.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57E6BB68B29F073A6086A189 /* LightTableFrames.swift */; };
 		A89D571209E2B5484684F97F /* HSLPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HSLPanel.swift; sourceTree = "<group>"; };
