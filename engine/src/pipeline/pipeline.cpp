@@ -2493,6 +2493,19 @@ bool Pipeline::run_finish(const Image& in, Image& out, Progress* progress, std::
         SPK_NODE(node_exposure(cur, next, error)); cur = next;
     }
 
+    // **Grain runs before the strip, not over it** (the owner, 2026-11-10: raising grain past 1
+    // turned the film edge's border green, then khaki). Grain works in the density domain, and the
+    // rebate's black is a display 0: `to_density` puts it at the film's `density_max`, where grain's
+    // negative half walks back along an exponential — measured on a 135 strip, the border's black
+    // half alone: 1.0 `#000100`, 1.2 `#021000`, 1.5 `#247B07`, 2.0 `#AFB378`, with the picture
+    // untouched the whole way (mean 0.248 → 0.224). The film chain survives the same grain because
+    // there the rebate is still the negative's clear base — low density — not the print's black.
+    // So the picture is grained first and the strip is drawn on top of it: the border never enters
+    // that round trip at all, and with grain off the order changes nothing (the pair is identity).
+    SPK_NODE(node_finish_to_density(cur, next, error)); cur = next;
+    if (params_.film_render.grain.active) { SPK_NODE(node_grain(cur, next, error)); cur = next; }
+    SPK_NODE(node_finish_from_density(cur, next, error)); cur = next;
+
     // The strip and the date: `node_overscan` draws either, and is the identity
     // with neither. Called here for the same reason the film chain calls it.
     SPK_NODE(node_overscan(cur, next, error)); cur = next;
@@ -2515,9 +2528,6 @@ bool Pipeline::run_finish(const Image& in, Image& out, Progress* progress, std::
         cur = next;
     }
     factory_exposure_ = Image{};
-    SPK_NODE(node_finish_to_density(cur, next, error)); cur = next;
-    if (params_.film_render.grain.active) { SPK_NODE(node_grain(cur, next, error)); cur = next; }
-    SPK_NODE(node_finish_from_density(cur, next, error)); cur = next;
     SPK_NODE(node_cctf(cur, next, error)); cur = next;
 
     out = cur;
