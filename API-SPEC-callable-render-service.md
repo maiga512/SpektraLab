@@ -1159,6 +1159,20 @@ falls back to full computation. Striped rendering does not use it.
 `SPK_CHECKPOINT_MODE=off` is a diagnostic forced-full path, not a new wire field.
 `SPK_V2_REFERENCE_OPTICAL=1` is exclusively the old-oracle qualification switch.
 
+**The enlarger acts on a calibrated pair (2026-11-10).** The table is the
+pair's print at the enlarger's rest, and the minilab node replaced the whole
+optical stage, so `print_exposure`, `y_filter_shift`, `m_filter_shift` and
+`preflash_exposure` used to move nothing on Portra 400 → Portra Endura (0.000
+at every level, where the optical path moves mid-grey by 0.34 a stop). They
+now act where the enlarger acts — on the light through the negative, before
+the table — through the kernel's epilogue `a * gain + offset`
+(`Pipeline::minilab_enlarger`): each channel's gain is the print exposure
+times the ratio of mid-grey's normalised paper exposure between these settings
+and the rest, and the pre-flash is its offset as a share of mid-grey at rest,
+carried onto the table's own mid-grey exposure. At the enlarger's rest the
+epilogue is `{1,1,1,0,0,0}` — the picture to the bit, as before. No wire field
+changed; the optical path on every other pair is untouched.
+
 ## 19. `finish_only` — the finish path: grain, the strip and the date, and no film (2026-11-09)
 
 **Status: in this engine** (`engine/src/pipeline/pipeline.cpp`, `Pipeline::run_finish`;

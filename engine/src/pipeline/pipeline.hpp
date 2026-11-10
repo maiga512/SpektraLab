@@ -730,6 +730,9 @@ private:
     bool node_glare(const Image& in, Image& out, std::string& error);
     bool node_xyz_gamut(const Image& in, Image& out, std::string& error);
     bool node_minilab(const Image& in, Image& out, std::string& error);
+    /// The enlarger on a minilab pair (`Pipeline::minilab_enlarger`): the epilogue's gain and offset
+    /// for Brightness, Yellow, Magenta and Pre-flash, which the calibrated table otherwise bypasses.
+    bool minilab_enlarger(float ep[6], std::string& error);
     bool node_xyz_to_rgb(const Image& in, Image& out, std::string& error);
     bool node_edr(const Image& in, Image& out, std::string& error);
     bool node_gamut_compress(const Image& in, Image& out, std::string& error);

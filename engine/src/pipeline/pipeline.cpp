@@ -1864,11 +1864,64 @@ bool Pipeline::node_glare(const Image& in, Image& out, std::string& error) {
                           in.elements(), error);
 }
 
+// The enlarger on a minilab pair (2026-11-10). The table is the pair's print at the enlarger's rest, and the
+// node replaced the whole optical printing stage, so Brightness, Yellow, Magenta and Pre-flash moved nothing
+// (measured: 0.000 at every level on Portra 400 / Portra Endura, where the optical path moves mid-grey by
+// 0.34 a stop). They act where the enlarger acts -- on the light through the negative, before the table: the
+// kernel's epilogue `a * gain + offset`, per channel, at rest {1,1,1,0,0,0} (the picture to the bit).
+//
+// The numbers are the optical path's own, at mid-grey: `print_constants` at these settings and at rest. A
+// channel's gain is the print exposure times the ratio of mid-grey's normalised paper exposure (gain x raw:
+// the filters' colour, with the normalisation's brightness taken out as the optical path takes it out); the
+// pre-flash is its offset as a share of mid-grey's exposure at rest, carried onto the table's own mid-grey
+// exposure. The table's channels are the paper's (`DiConstants::ixs` is the paper's printing density).
+bool Pipeline::minilab_enlarger(float ep[6], std::string& error) {
+    const EnlargerParams& en = params_.enlarger;
+    if (en.print_exposure == 1.0 && en.y_filter_shift == 0.0 && en.m_filter_shift == 0.0 && en.preflash_exposure <= 0.0)
+        return true;
+    Params rest = params_;
+    rest.enlarger.print_exposure = 1.0;
+    rest.enlarger.y_filter_shift = rest.enlarger.m_filter_shift = 0.0;
+    rest.enlarger.preflash_exposure = 0.0;
+    PrintConstants at, base;
+    if (!print_constants(*colour_, *blob_, params_, tc_lut_host_, baked_.tc_lut_side, at, error)) return false;
+    if (!print_constants(*colour_, *blob_, rest, tc_lut_host_, baked_.tc_lut_side, base, error)) return false;
+    // Mid-grey's normalised paper exposure, per channel: gain x sum(10^-d * light * sensitivity).
+    auto midgray = [](const PrintConstants& pc, double m[3]) {
+        m[0] = m[1] = m[2] = 0.0;
+        for (size_t l = 0; l < kNumWavelengths; ++l) {
+            const double t = std::pow(10.0, -pc.density_spectral_midgray[l]) * pc.print_illuminant[l];
+            if (!std::isfinite(t)) continue;
+            for (int c = 0; c < 3; ++c) m[c] += t * pc.paper_sensitivity[3 * l + size_t(c)];
+        }
+        for (int c = 0; c < 3; ++c) m[c] *= pc.gain[c];
+    };
+    double m_at[3], m_rest[3];
+    midgray(at, m_at);
+    midgray(base, m_rest);
+    // The table's own mid-grey exposure: the film's dyes above its base, through the paper's printing density.
+    double a_mid[3] = {0, 0, 0};
+    for (size_t l = 0; l < kNumWavelengths; ++l) {
+        const double d = base.density_spectral_midgray[l] - base.spectral.base_density[l];
+        const double t = std::pow(10.0, -d);
+        if (!std::isfinite(t)) continue;
+        for (int c = 0; c < 3; ++c) a_mid[c] += t * di_.ixs[3 * l + size_t(c)];
+    }
+    const double pe = en.print_exposure;
+    for (int c = 0; c < 3; ++c) {
+        const double ref = std::fmax(m_rest[c], 1e-12);
+        ep[c] = float(pe * m_at[c] / ref);
+        ep[3 + c] = float(pe * at.offset[c] / ref * a_mid[c]);
+    }
+    return true;
+}
+
 bool Pipeline::node_minilab(const Image& in, Image& out, std::string& error) {
     Timer t(this, "printing.minilab");
     if (!alloc_like(in, out, error)) return false;
     const uint32_t meta[4] = {uint32_t(in.pixels()), kNumWavelengths, uint32_t(di_.curve.k), minilab_side_};
-    const float ep[6] = {1, 1, 1, 0, 0, 0};
+    float ep[6] = {1, 1, 1, 0, 0, 0};
+    if (!minilab_enlarger(ep, error)) return false;
     return gpu_->dispatch("spk_minilab", {
         gpu::Arg::buf(in.buf), gpu::Arg::buf(baked_.di_chd), gpu::Arg::buf(baked_.di_zero_base),
         gpu::Arg::buf(baked_.di_ixs), gpu::Arg::inline_bytes(ep, 6), gpu::Arg::inline_bytes(meta, 4),
