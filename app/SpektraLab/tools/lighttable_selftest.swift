@@ -516,7 +516,8 @@ func shownChecks(_ c: inout Checker, _ r: Rules) {
 }
 
 func sizeChecks(_ c: inout Checker, _ r: Rules) {
-    // Every format, both views, both ways up: the film's width across a strip, the gate and its carrier filed.
+    // Every format, each view, both ways up: the film's width across a strip and across the
+    // letters mode (无边框 keeps strip's geometry), the gate and its carrier filed.
     for format in FilmEdgeFormat.allCases {
         for view in FilmEdgeView.allCases {
             for turned in [false, true] {
@@ -528,7 +529,7 @@ func sizeChecks(_ c: inout Checker, _ r: Rules) {
                 let down = g.vertical != (g.extraTurns % 2 == 1)   // the film runs down the canvas as shown
                 let acrossMM = down ? s.width : s.height, alongMM = down ? s.height : s.width
                 let name = "\(format.rawValue) \(view.rawValue)\(turned ? " turned" : "")"
-                if view == .strip {
+                if view == .strip || view == .letters {
                     c.near(acrossMM, format.filmWidthMM, format.isPerforated ? 0.02 : 0.17, "\(name): the film's width across")
                     let margin = format.isPerforated ? (format.alongMM < 20 ? (0.40, 0.50) : (0.75, 0.95)) : (1.05, 2.35)
                     c.expect(alongMM >= format.alongMM + 2 * margin.0 - 0.02 && alongMM <= format.alongMM + 2 * margin.1 + 0.02,

@@ -185,12 +185,19 @@ struct OverscanParams {
     bool active = false;
     std::string format = "135";      // 135 | 135_half | 120_645 | 120_6x6 | 120_6x7 | 120_6x8 | 120_6x9
     std::string mode = "strip";      // strip (the whole film width) | filed (a sliver of rebate)
+                                    // | letters (no film drawn: a flat band and the edge print alone; finish path)
     int camera_seed = 1;
     int frame_seed = 1;
     double fog = 1.0;                // edge fog from the spool, 0 = none
     double leaks = 0.0;              // spool light leaks, 0 = none
     std::string edge_text;           // the manufacturer's edge print; the app decides real vs display names
     std::string edge_color = "stock";   // lettering ink: stock (the film's own) | yellow | red | green
+                                       // | blue | custom (the ink below)
+    std::string edge_ink;               // letters mode's ink, display sRGB "r,g,b"; empty follows edge_color
+    std::string band;                   // letters mode's flat band, display sRGB "r,g,b"; empty = black
+    bool edge_name = true;              // the stock's name row (letters mode, owner 2026-11-12)
+    bool edge_number = true;            // the frame's number row ("12A")
+    bool edge_marks = true;             // the arrows and advance marks
     double f_number = 0.0;           // EXIF; sets the gate penumbra. 0 = unknown (f/5.6 assumed)
     // RFC-032 §29: the gate's shape family (auto = the camera seed picks one
     // that the format's real cameras have), and what the scan sees through

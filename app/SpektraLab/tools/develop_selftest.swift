@@ -348,6 +348,37 @@ func finishWireChecks(_ c: inout Checker) {
              "finish wire: a wire that never carried them sends nothing about them")
 }
 
+/// The letters mode's wire (无边框, owner 2026-11-12): the band the caller passes, the custom
+/// ink, and the three element switches — and the band only in letters mode.
+func edgeLettersWireChecks(_ c: inout Checker) {
+    var e = FilmEdgeSettings()
+    e.active = true
+    e.mode = .letters
+    func fields(_ edge: FilmEdgeSettings, band: String?) -> [String: ParamValue] {
+        var w: [String: ParamValue] = [:]
+        for f in edge.wire(edgeText: "SPEKTRA 400", frameSeed: 1, fNumber: 5.6, band: band) { w[f.name] = f.value }
+        return w
+    }
+    let letters = fields(e, band: "0.1,0.11,0.13")
+    c.expect(letters["overscan_mode"] == .string("letters"), "letters wire: the mode rides")
+    c.expect(letters["overscan_band"] == .string("0.1,0.11,0.13"), "letters wire: the band is passed through")
+    c.expect(letters["overscan_edge_name"] == .bool(true) && letters["overscan_edge_number"] == .bool(true)
+             && letters["overscan_edge_marks"] == .bool(true), "letters wire: the switches default on")
+    e.edgeName = false
+    e.edgeMarks = false
+    let off = fields(e, band: "1,1,1")
+    c.expect(off["overscan_edge_name"] == .bool(false) && off["overscan_edge_marks"] == .bool(false)
+             && off["overscan_edge_number"] == .bool(true), "letters wire: a switch reaches the wire")
+    e.edgeColor = .custom
+    e.edgeInk = "0,0,0"
+    let ink = fields(e, band: nil)
+    c.expect(ink["overscan_edge_color"] == .string("custom"), "letters wire: custom is the ink's name")
+    c.expect(ink["overscan_edge_ink"] == .string("0,0,0"), "letters wire: the custom ink rides")
+    e.mode = .strip
+    let strip = fields(e, band: "1,1,1")
+    c.expect(strip["overscan_band"] == nil, "letters wire: strip sends no band")
+}
+
 /// The finish path (2026-11-09): film and paper's colour off, the frame's own
 /// picture kept, and the film edge, the date and the grain still drawn.
 func finishChecks(_ c: inout Checker) {
@@ -891,6 +922,7 @@ struct DevelopSelfTest {
             sizeChecks(&c, rules)
             finishChecks(&c)
             finishWireChecks(&c)
+            edgeLettersWireChecks(&c)
             slideChecks(&c, rules, catalog: catalog)
             silverChecks(&c, rules, catalog: catalog)
             pageChecks(&c, rules, catalog: catalog)

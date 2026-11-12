@@ -369,7 +369,7 @@ struct EdgeStepPanel: View {
     // gain, so the ruler is shown at the edit's value and does not move: every film edge is
     // printed at 1×, as the film was measured.
     private var printPanel: some View {
-        DrawnBand(height: 176) {
+        DrawnBand(height: 240) {
             // In the column there is no disc above to say whose brightness it is: the ruler says it.
             RulerRow(label: flat ? L(shown: EdgeTool.print.rawValue) : L("Brightness"),
                      valueText: String(format: "%.1f×", edge.edgeBrightness),
@@ -389,7 +389,39 @@ struct EdgeStepPanel: View {
             // Padding, not a leading guide: `leading(16)` moves the row's edge without taking its
             // width in, and the name at the right ran past the panel (the owner, 2026-11-10).
             inkSwatches.padding(.leading, 16).padding(.trailing, 16).top(144)
+            // The print's own words, each switchable (无边框 letters mode, owner 2026-11-12) —
+            // and the date back's switch, which came here to stand in the same row with them.
+            elementSwitches.padding(.horizontal, 16).top(180)
         }
+    }
+
+    /// The four switches in one row: the stock's name, the frame's number, the advance's arrows
+    /// (`overscan_edge_name` / `_number` / `_marks`), and the date back (`date_imprint.active`).
+    private var elementSwitches: some View {
+        HStack(alignment: .top, spacing: 10) {
+            element(L("Name"), Binding(get: { edge.edgeName ?? true }, set: { set(\.edgeName, $0) }),
+                    id: "film-edge.edge.name")
+            element(L("Frame Number"), Binding(get: { edge.edgeNumber ?? true }, set: { set(\.edgeNumber, $0) }),
+                    id: "film-edge.edge.number")
+            element(L("Advance"), Binding(get: { edge.edgeMarks ?? true }, set: { set(\.edgeMarks, $0) }),
+                    id: "film-edge.edge.marks")
+            element(L("Date"), Binding(get: { draft.dateBack.active }, set: { on in
+                guard on != draft.dateBack.active else { return }
+                draft.dateBack.active = on
+                changed()
+            }), id: "film-edge.edge.date")
+        }
+    }
+
+    private func element(_ label: String, _ isOn: Binding<Bool>, id: String) -> some View {
+        VStack(spacing: 5) {
+            Text(label).font(Theme.Font.ui(11)).foregroundStyle(Theme.secondaryText)
+                .lineLimit(1).minimumScaleFactor(0.8)
+            SpkToggle(isOn: isOn)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(id)
     }
 
     /// The four inks, each a dot of its own: the film's (which no fixed swatch can show, so it is
@@ -421,6 +453,13 @@ struct EdgeStepPanel: View {
                 .accessibilityAddTraits(on ? .isSelected : [])
                 .accessibilityIdentifier("film-edge.ink." + ink.rawValue)
             }
+            if current == .custom {
+                ColorPicker("", selection: customInk, supportsOpacity: false)
+                    .labelsHidden()
+                    .frame(width: 30, height: 26)
+                    .accessibilityLabel(L("Lettering Colour") + ", " + L("Custom"))
+                    .accessibilityIdentifier("film-edge.ink.custom.picker")
+            }
             Spacer(minLength: 8)
             Text(current.title)
                 .font(Theme.Font.ui(12))
@@ -428,6 +467,21 @@ struct EdgeStepPanel: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: 26)
+    }
+
+    /// The custom ink as the picker sees it: display sRGB components, the wire's own
+    /// `"r,g,b"` between them (`overscan_edge_ink`). nil reads as near-black — what an
+    /// untouched custom chip shows and the engine falls back to.
+    private var customInk: Binding<Color> {
+        Binding(get: {
+            let parts = (edge.edgeInk ?? "0,0,0").split(separator: ",").compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+            let r = parts.count > 0 ? parts[0] : 0, g = parts.count > 1 ? parts[1] : 0, b = parts.count > 2 ? parts[2] : 0
+            return Color(red: r, green: g, blue: b)
+        }, set: { color in
+            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+            UIColor(color).getRed(&r, green: &g, blue: &b, alpha: &a)
+            set(\.edgeInk, String(format: "%.6f,%.6f,%.6f", r, g, b))
+        })
     }
 
     // Body: the camera, the frame's number, and the advance. The number is
@@ -885,6 +939,7 @@ extension EdgeColor {
         case .red: 0xF48A2D          // 橙红: what the strip prints (the owner, 2026-11-10)
         case .green: 0x2FDC14        // 荧光绿: saturated, and it prints so
         case .blue: 0x43A8FF         // 亮蓝: bright and saturated, as it prints
+        case .custom: 0xFFFFFF        // no fixed swatch: the row shows the chosen colour beside it
         }
     }
 }

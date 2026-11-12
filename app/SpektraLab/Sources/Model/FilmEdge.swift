@@ -166,9 +166,15 @@ enum FilmEdgeFormat: String, CaseIterable, Identifiable, Codable, Sendable {
 
 /// `overscan_mode`: the whole film width, or a filed-out carrier's sliver of rebate.
 enum FilmEdgeView: String, CaseIterable, Identifiable, Codable, Sendable {
-    case strip = "strip", filed = "filed"
+    case strip = "strip", filed = "filed", letters = "letters"
     var id: String { rawValue }
-    var label: String { self == .strip ? L("Strip") : L("Filed") }
+    var label: String {
+        switch self {
+        case .strip: L("Strip")
+        case .filed: L("Filed")
+        case .letters: L("Letters")          // 无边框: the band is a flat colour, only the print shows
+        }
+    }
 }
 
 /// `overscan_gate`: the gate's shape family. `auto` lets the camera seed pick
@@ -196,6 +202,8 @@ enum FilmEdgeHoles: String, CaseIterable, Identifiable, Codable, Sendable {
 /// luminance in the engine (`overscan.cpp`).
 enum EdgeColor: String, CaseIterable, Identifiable, Codable, Sendable {
     case stock = "stock", yellow, red, green, blue
+    /// The host's own colour (the letters mode's picker), read from `FilmEdgeSettings.edgeInk`.
+    case custom = "custom"
 
     var id: String { rawValue }
 
@@ -206,6 +214,7 @@ enum EdgeColor: String, CaseIterable, Identifiable, Codable, Sendable {
         case .red: L("Red")
         case .green: L("Neon Green")
         case .blue: L("Blue")
+        case .custom: L("Custom")
         }
     }
 }
@@ -216,7 +225,8 @@ struct FilmEdgeSettings: Codable, Equatable, Sendable {
     enum CodingKeys: String, CodingKey {
         case active = "active", format = "format", mode = "mode", gate = "gate", holes = "holes", fog = "fog",
             leaks = "leaks", turn = "turn", cameraSeed = "cameraSeed", frameNumber = "frameNumber", framing = "framing",
-            edgeBrightness = "edgeBrightness", edgeColor = "edgeColor"
+            edgeBrightness = "edgeBrightness", edgeColor = "edgeColor",
+            edgeInk = "edgeInk", edgeName = "edgeName", edgeNumber = "edgeNumber", edgeMarks = "edgeMarks"
     }
     var active = false
     var format = FilmEdgeFormat.f135
@@ -248,6 +258,15 @@ struct FilmEdgeSettings: Codable, Equatable, Sendable {
     /// The lettering's ink; nil is the film's own colour. Optional so an edit written before it
     /// exists round-trips byte for byte, and so `stock` is not written at all.
     var edgeColor: EdgeColor? = nil
+    /// `overscan_edge_ink`: the letters mode's ink as display sRGB "r,g,b", read when `edgeColor`
+    /// is `.custom`; nil falls back to the presets — optional as `edgeColor` is, for round-trips.
+    var edgeInk: String? = nil
+    /// `overscan_edge_name` / `_number` / `_marks`: the print's three element switches
+    /// (无边框 letters mode, owner 2026-11-12). nil is *on* — the default, and what an edit
+    /// written before them says. They take their row out of any mode's print, not only letters'.
+    var edgeName: Bool? = nil
+    var edgeNumber: Bool? = nil
+    var edgeMarks: Bool? = nil
 
     static let fogRange = 0.0...4.0
     static let leaksRange = 0.0...4.0
@@ -313,7 +332,9 @@ struct FilmEdgeSettings: Codable, Equatable, Sendable {
         let alongPx = vertical ? h : w
         let marginMM: Double, acrossMM: Double
         switch mode {
-        case .strip:
+        case .strip, .letters:
+            // The letters mode keeps strip's geometry (无边框, owner 2026-11-12): the print sits
+            // where it sits on the film — only no film is drawn in it.
             marginMM = format == .half ? 0.5 : (format.isPerforated ? 0.95 : 2.35)
             // The film's width (120's is cut to ±0.15) and nothing past it.
             acrossMM = format.filmWidthMM + (format.isPerforated ? 0 : 0.15)
@@ -347,7 +368,8 @@ struct FilmEdgeSettings: Codable, Equatable, Sendable {
     /// are the same film turned half round: the host turns the picture before
     /// the call and the canvas back after it, until the wire has `overscan_turn`
     /// (design/overscan §8.1).
-    func wire(edgeText: String, frameSeed: Int, fNumber: Double) -> [(name: String, value: ParamValue, layer: ParamLayer)] {
+    func wire(edgeText: String, frameSeed: Int, fNumber: Double,
+              band: String? = nil) -> [(name: String, value: ParamValue, layer: ParamLayer)] {
         var fields: [(name: String, value: ParamValue, layer: ParamLayer)] = [
             ("overscan_active", .bool(effective), .shoot),
         ]
@@ -366,7 +388,17 @@ struct FilmEdgeSettings: Codable, Equatable, Sendable {
             ("overscan_edge_text", .string(edgeText), .shoot),
             ("overscan_edge_color", .string((edgeColor ?? .stock).rawValue), .shoot),
             ("overscan_f_number", .double(fNumber.clamped(to: 0...64)), .shoot),
+            // The letters mode's own (无边框, owner 2026-11-12): the band as display sRGB
+            // ("r,g,b"; the caller passes the page's ground, an export its white), the custom
+            // ink, and the three element switches. The switches hold in any mode.
+            ("overscan_edge_name", .bool(edgeName ?? true), .shoot),
+            ("overscan_edge_number", .bool(edgeNumber ?? true), .shoot),
+            ("overscan_edge_marks", .bool(edgeMarks ?? true), .shoot),
         ]
+        if mode == .letters, let band { fields.append(("overscan_band", .string(band), .shoot)) }
+        if edgeColor == .custom, let ink = edgeInk, !ink.isEmpty {
+            fields.append(("overscan_edge_ink", .string(ink), .shoot))
+        }
         return fields
     }
 }

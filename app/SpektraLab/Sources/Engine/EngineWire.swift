@@ -178,7 +178,14 @@ extension FrameEdit {
     /// without it neither is sent. The engine is later sent only what changed
     /// (`SpkEngine`). With a film edge the frame handed over beside this wire
     /// has to be the host's cut of it (`hostCut`).
-    func engineWire(previewLongEdge: Int?, film: FilmWire? = nil) -> [String: ParamValue] {
+    func engineWire(previewLongEdge: Int?, film: FilmWire? = nil, isRAW: Bool? = nil,
+                    band: String? = nil) -> [String: ParamValue] {
+        // **A file that is not RAW never gets the film's colour** (the owner, 2026-11-11): the film
+        // mapping is only calibrated for RAW, and a JPEG through it came out purple and mottled. So
+        // the switch is inert for anything that is not RAW — the finish path runs instead, where the
+        // strip, the grain and the date still draw and the picture keeps its own colour. Callers that
+        // know the file say so; `nil` (a schema check, a pair) takes the edit's own switch as it is.
+        let filmApplies = appliesFilm && (isRAW ?? true)
         // Through the catalogue: a slide film is scanned, whatever the edit
         // holds (`StockCatalog.wire(for:)`, and the rule above it).
         var wire = StockCatalog.shared.wire(for: params)
@@ -187,13 +194,16 @@ extension FrameEdit {
         // The finish path: the film and the paper's colour are off, and the
         // engine still renders — grain, the strip and the date, and nothing
         // else. The picture enters and leaves as it is (ARCHITECTURE §7).
-        if !appliesFilm {
+        if !filmApplies {
             wire["finish_only"] = .bool(true)
-            // The source is Apple's stock decode **in ROMM's own curve**
-            // (`DigitalDecode.finishSource`): the engine takes the curve off at the door
-            // (`input_cctf_decoding`), so its maths runs on linear pixels as they do on the
-            // film path. And Apple's decode already applied the frame's white balance — it
-            // reads `decode`'s own — so the engine's stays neutral: never sent twice.
+            // **The input is ROMM-encoded ProPhoto and this flag is its other half**
+            // (`DigitalDecode.finishSource`): the engine declares ProPhoto, removes ROMM's curve at
+            // the door, works in its own space, and hands ProPhoto back — which is what
+            // `OutputTransformer.workingSpace` converts from for the canvas. Split the pair (send
+            // linear pixels and no flag) and the picture keeps its brightness but changes colour:
+            // measured on the owner's own JPEG, R/G 1.91 → 2.41 and saturation 0.575 → 0.642 —
+            // a white door came out pink. Apple's decode already applied the frame's white balance,
+            // so the engine's stays neutral: never sent twice.
             wire["input_cctf_decoding"] = .bool(true)
             wire["scene_wb_temperature"] = .double(6500)
             wire["scene_wb_tint"] = .double(0)
@@ -209,7 +219,8 @@ extension FrameEdit {
         // The film first: the date names its camera only when there is no film.
         var edge = filmEdge
         if edge.cameraSeed == 0 { edge.cameraSeed = film.bodySeed }
-        for field in edge.wire(edgeText: film.edgeText, frameSeed: frameSeed, fNumber: film.fNumber) { wire[field.name] = field.value }
+        for field in edge.wire(edgeText: film.edgeText, frameSeed: frameSeed, fNumber: film.fNumber,
+                               band: band) { wire[field.name] = field.value }
         for field in dateBack.wire(text: film.dateText, filmEdge: filmEdge, dataText: film.dataText) { wire[field.name] = field.value }
         return wire
     }

@@ -259,6 +259,11 @@ uint32_t cctf_mode_for(const std::string& colour_space);
 // drawn once per run from the seeds (`overscan.cpp`). Film millimetres: `s`
 // along the film, `t` across, `t = 0` at the first long edge.
 struct OverscanLayout {
+    // The letters mode (无边框): the band is drawn flat in this colour, working-linear
+    // (the wire's display sRGB, converted at layout), and only the edge print shows.
+    bool letters = false;
+    double band[3] = {0, 0, 0};
+    double ink[3] = {0, 0, 0};
     bool valid = false;
     std::string format;
     double px = 0.0;                      // mm per pixel (the frame's pitch)

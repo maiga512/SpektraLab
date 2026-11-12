@@ -4951,6 +4951,28 @@
         }
       }
     },
+    "Concentration" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "濃度"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "浓度"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "濃度"
+          }
+        }
+      }
+    },
     "Connect it, or Reconnect if it moved. Its frames' previews still edit." : {
       "localizations" : {
         "ja" : {
@@ -5776,7 +5798,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "自定"
+            "value" : "自定义"
           }
         },
         "zh-Hant" : {
@@ -8493,6 +8515,28 @@
         }
       }
     },
+    "Film emulation comes to JPEG later" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィルムの写しは後で JPEG に対応します"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "胶片模拟稍后支持 JPG"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "膠片模擬稍後支援 JPG"
+          }
+        }
+      }
+    },
     "Film emulation off" : {
       "localizations" : {
         "ja" : {
@@ -9347,6 +9391,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "畫幅"
+          }
+        }
+      }
+    },
+    "Frame Number" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フレーム番号"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "格号"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "格號"
           }
         }
       }
@@ -12031,6 +12097,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "字體顏色"
+          }
+        }
+      }
+    },
+    "Letters" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文字のみ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无边框"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無邊框"
           }
         }
       }
@@ -18107,6 +18195,50 @@
         }
       }
     },
+    "Restore Photo" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "写真を元に戻す"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还原照片"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還原照片"
+          }
+        }
+      }
+    },
+    "Restore Settings" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定を元に戻す"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还原设置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還原設定"
+          }
+        }
+      }
+    },
     "Retry" : {
       "localizations" : {
         "ja" : {
@@ -18939,6 +19071,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "設定已貼上到 1 張照片。"
+          }
+        }
+      }
+    },
+    "Settings restored" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定を元に戻しました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置已还原"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定已還原"
           }
         }
       }

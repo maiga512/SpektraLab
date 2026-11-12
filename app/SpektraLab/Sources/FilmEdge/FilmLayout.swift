@@ -96,7 +96,10 @@ enum FilmLayout {
 
         // --- canvas
         let marginAlong: Double
-        if r.mode == .strip {
+        // The letters mode (无边框, owner 2026-11-12) keeps strip's geometry — the ported
+        // statement runs the same way the engine's `overscan_layout` does: the print sits
+        // where it sits on the film; only no film is drawn in it.
+        if r.mode == .strip || r.mode == .letters {
             if fmt.isPerforated {
                 marginAlong = fmt.alongMM < 20.0 ? rc.uni(0.40, 0.50) : rc.uni(0.75, 0.95)
             } else {

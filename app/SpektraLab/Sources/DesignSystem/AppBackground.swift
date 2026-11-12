@@ -44,6 +44,20 @@ enum AppBackground {
               : [darkDefault, 0x000000, 0x1C1C1E, 0x232A33, 0x241F1B]
     }
 
+    /// The letters mode's band (无边框, owner 2026-11-12): the ground the page shows behind the
+    /// picture, as the wire's display sRGB "r,g,b". Resolved exactly as `Theme.ground` resolves
+    /// it — token, chosen ground and all — so band and page are one colour. The mode comes from
+    /// the current trait, as the colour provider's does: a render is prepared for the window asking.
+    static func lettersBandWire() -> String {
+        let light = UITraitCollection.current.userInterfaceStyle == .light
+        let token = light ? lightDefault : darkDefault
+        let resolved = derive(token, standard: token, ground: ground(light: light), light: light)
+        let r = Double((resolved >> 16) & 0xFF) / 255.0
+        let g = Double((resolved >> 8) & 0xFF) / 255.0
+        let b = Double(resolved & 0xFF) / 255.0
+        return String(format: "%.6f,%.6f,%.6f", r, g, b)
+    }
+
     /// Whether a mode's ground is the default.
     static func isDefault(light: Bool) -> Bool {
         let c = chosen.withLock { $0 }

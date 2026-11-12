@@ -158,6 +158,13 @@ const SchemaField kFields[] = {
     {"overscan_leaks",           "film_render.overscan.leaks",            F, SHOOT, true, 0.0, 4.0, false},
     {"overscan_edge_text",       "film_render.overscan.edge_text",        S, SHOOT, false, 0, 0, false},
     {"overscan_edge_color",      "film_render.overscan.edge_color",       S, SHOOT, false, 0, 0, false},
+    // The letters mode (无边框, owner 2026-11-12): no film is drawn; band and ink are display
+    // sRGB "r,g,b" and the pipeline converts them to its own primaries at layout.
+    {"overscan_band",            "film_render.overscan.band",             S, SHOOT, false, 0, 0, false},
+    {"overscan_edge_ink",        "film_render.overscan.edge_ink",         S, SHOOT, false, 0, 0, false},
+    {"overscan_edge_name",       "film_render.overscan.edge_name",        B, SHOOT, false, 0, 0, false},
+    {"overscan_edge_number",     "film_render.overscan.edge_number",      B, SHOOT, false, 0, 0, false},
+    {"overscan_edge_marks",      "film_render.overscan.edge_marks",       B, SHOOT, false, 0, 0, false},
     {"overscan_f_number",        "film_render.overscan.f_number",         F, SHOOT, true, 0.0, 64.0, false},
     {"overscan_gate",            "film_render.overscan.gate",             S, SHOOT, false, 0, 0, false},
     {"overscan_holes",           "film_render.overscan.holes",            S, SHOOT, false, 0, 0, false},
@@ -325,6 +332,9 @@ bool* bool_slot(Params& p, const std::string& path) {
     if (path == "camera.scene_latitude.active") return &p.camera.scene_latitude.active;
     if (path == "camera.scene_latitude.b_active") return &p.camera.scene_latitude.b_active;
     if (path == "film_render.overscan.active") return &p.film_render.overscan.active;
+    if (path == "film_render.overscan.edge_name") return &p.film_render.overscan.edge_name;
+    if (path == "film_render.overscan.edge_number") return &p.film_render.overscan.edge_number;
+    if (path == "film_render.overscan.edge_marks") return &p.film_render.overscan.edge_marks;
     if (path == "film_render.overscan.pair") return &p.film_render.overscan.pair;
     if (path == "film_render.date_imprint.active") return &p.film_render.date_imprint.active;
     return nullptr;
@@ -345,6 +355,8 @@ std::string* str_slot(Params& p, const std::string& path) {
     if (path == "film_render.overscan.mode") return &p.film_render.overscan.mode;
     if (path == "film_render.overscan.edge_text") return &p.film_render.overscan.edge_text;
     if (path == "film_render.overscan.edge_color") return &p.film_render.overscan.edge_color;
+    if (path == "film_render.overscan.band") return &p.film_render.overscan.band;
+    if (path == "film_render.overscan.edge_ink") return &p.film_render.overscan.edge_ink;
     if (path == "film_render.date_imprint.text") return &p.film_render.date_imprint.text;
     if (path == "film_render.date_imprint.text_b") return &p.film_render.date_imprint.text_b;
     if (path == "film_render.date_imprint.data_text") return &p.film_render.date_imprint.data_text;

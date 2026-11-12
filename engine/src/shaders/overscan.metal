@@ -32,7 +32,9 @@ enum : uint {
     P_CARRIER = 199,
     P_LEAKS = 200,          // up to 12 x (s, side, amp, sigma_s, sigma_t)
     P_PAIR_ADV = 260,       // > 0: the same gate exposed again this far along (a half-frame pair)
-    P_COUNT = 261
+    P_LETTERS = 261,          // > 0.5: the letters mode — flat band, no film, the print alone
+    P_BAND_R = 262, P_BAND_G, P_BAND_B,
+    P_COUNT = 265
 };
 constant uint kQStride = 10u;
 
@@ -151,7 +153,10 @@ kernel void spk_overscan_canvas(device const float* frame [[buffer(0)]],
     const uint cw = uint(P[P_CW]);
     const float2 st = canvas_to_film(float(i % cw), float(i / cw), P);
     const float W = P[P_FILM_W];
-    float3 e = float3(0.0f);
+    // The letters mode (无边框): the band is its flat colour wherever no picture is,
+    // and the gate's pixels are mixed onto it rather than exposed over black.
+    const bool letters = P[P_LETTERS] > 0.5f;
+    float3 e = letters ? float3(P[P_BAND_R], P[P_BAND_G], P[P_BAND_B]) : float3(0.0f);
     if (P[P_CARRIER] > 1.5f || (st.y >= 0.0f && st.y <= W)) {
         // A pair: past the middle of the gap, the second exposure of the same gate.
         float2 sg = st;
@@ -163,7 +168,9 @@ kernel void spk_overscan_canvas(device const float* frame [[buffer(0)]],
             float fx, fy;
             if (P[P_VERTICAL] < 0.5f) { fx = (st.x - P[P_GS0]) / px - 0.5f; fy = (st.y - P[P_GT0]) / px - 0.5f; }
             else                      { fx = (P[P_GT0] + P[P_GH] - st.y) / px - 0.5f; fy = (st.x - P[P_GS0]) / px - 0.5f; }
-            e += cov * sample_frame(frame, fx, fy, uint(P[P_FW]), uint(P[P_FH]));
+            const float3 pic = sample_frame(frame, fx, fy, uint(P[P_FW]), uint(P[P_FH]));
+            if (letters) e = mix(e, pic, cov);   // the band is not a black rebate to expose onto
+            else e += cov * pic;
         }
         // Gate flare: the gate's bevelled edge reflects scene light onto the
         // film just outside the frame -- a thin line that follows the scene's
@@ -221,6 +228,29 @@ kernel void spk_overscan_add_mask(device const float* mask [[buffer(0)]],
     canvas[o] += c * M[6];
     canvas[o + 1u] += c * M[7];
     canvas[o + 2u] += c * M[8];
+}
+
+// ③b: a rasterised imprint mixed onto the band (the letters mode, 无边框, owner 2026-11-12):
+// the band is not a black rebate, so adding would saturate a light band away and the print
+// would vanish. The ink clamps to display range — the five presets were tuned to punch a
+// black rebate and their exposures exceed it.
+kernel void spk_overscan_mix_mask(device const float* mask [[buffer(0)]],
+                                  device const float* M [[buffer(1)]],
+                                  device const uint* n [[buffer(2)]],
+                                  device float* canvas [[buffer(3)]],
+                                  uint3 tid [[thread_position_in_grid]]) {
+    const uint i = tid.x;
+    if (i >= n[0]) return;
+    const uint mw = uint(M[2]);
+    const int x = int(M[0]) + int(i % mw), y = int(M[1]) + int(i / mw);
+    if (x < 0 || y < 0 || x >= int(M[4]) || y >= int(M[5])) return;
+    const float c = mask[i];
+    if (c <= 0.0f) return;
+    const uint o = 3u * (uint(y) * uint(M[4]) + uint(x));
+    const float3 ink = clamp(float3(M[6], M[7], M[8]), 0.0f, 1.0f);
+    canvas[o]      = mix(canvas[o],      ink.x, c);
+    canvas[o + 1u] = mix(canvas[o + 1u], ink.y, c);
+    canvas[o + 2u] = mix(canvas[o + 2u], ink.z, c);
 }
 
 // The nearest perforation's signed distance (mm, negative inside). KS holes

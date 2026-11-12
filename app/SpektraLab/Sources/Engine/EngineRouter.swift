@@ -262,7 +262,11 @@ final class EngineRouter {
         // frame has grain, a film edge or a date (`usesFinishPath`); with none of the three
         // there is nothing only the engine makes, and the picture is Apple's decode alone.
         guard edit.usesEngine || frame.isPair else { return Self.digitalWire(edit) }
-        var wire = edit.engineWire(previewLongEdge: longEdge, film: FilmWire(frame: frame, edit: edit, bodySeed: bodySeed()))
+        var wire = edit.engineWire(previewLongEdge: longEdge, film: FilmWire(frame: frame, edit: edit, bodySeed: bodySeed()),
+                                   isRAW: frame.developsFromRAW,
+                                   // The letters band is the ground the page shows behind the picture, so it
+                                   // disappears; an export overrides it to white (its own wire is built below).
+                                   band: edit.filmEdge.mode == .letters ? AppBackground.lettersBandWire() : nil)
         if !frame.isPair { holdFilmFormat(&wire, frame: frame, edit: edit) }
         return wire
     }
@@ -507,7 +511,8 @@ final class EngineRouter {
         let original = frame.originalSize
         guard original.width > 0, original.height > 0 else { return nil }
         // The film and the date are Format's, drawn round the page's develop: a card is the picture.
-        var wire = edit.engineWire(previewLongEdge: StockPreviewSize.renderLongEdge, film: nil)
+        var wire = edit.engineWire(previewLongEdge: StockPreviewSize.renderLongEdge, film: nil,
+                                   isRAW: frame.developsFromRAW)
         holdFilmFormat(&wire, frame: frame, edit: edit)
         // The picture's cut in the original's pixels: the film's framing, cut by the host and turned
         // as the page's develop cuts and turns it — so the page's own decode can be the strip's — or
@@ -653,12 +658,12 @@ final class EngineRouter {
                                                      layers: layers(pair, piece: piece, look: edit)))
             return true
         }
-        let wire = exportWire(frame, plan: plan, full: job.tier == .full)
+        let wire = exportWire(frame, plan: plan, full: job.tier == .full, exporting: true)
         var request = EngineHost.Request(frameID: frame.id, source: source, isRAW: isRAW, decode: edit.decode,
                                          longEdge: plan.decodeLongEdge, cut: plan.cut, wire: wire,
                                          turnsAfter: plan.turnsAfter, stamp: "", purpose: .export(order))
         // The page's zoom may have kept this very render (`FullRender`): then it is the export's.
-        if job.tier == .full { request.fullRender = fullAsk(frame, plan: plan, source: source, isRAW: isRAW) }
+        if job.tier == .full { request.fullRender = fullAsk(frame, plan: plan, source: source, isRAW: isRAW, exporting: true) }
         if !edit.usesEngine { request.digital = plan.cut ?? (plan.engineCuts ? edit.geometry : .default) }
         host.register(job.id, request)
         return true
@@ -676,10 +681,15 @@ final class EngineRouter {
 
     /// The wire of an export's render, as `prepareExport` hands it: the
     /// edit's own, with the photo's crop taken off where the host makes it.
-    private func exportWire(_ frame: LibraryFrame, plan: ExportPlan, full: Bool) -> [String: ParamValue] {
+    /// `exporting` is an export's own file (the owner, 2026-11-12: "JPG 导出白底") — its letters
+    /// band is white where the page's renders take the page's ground, and the stamp follows it,
+    /// so the two caches hold their own colour and never hand each other a band of the wrong one.
+    private func exportWire(_ frame: LibraryFrame, plan: ExportPlan, full: Bool,
+                            exporting: Bool = false) -> [String: ParamValue] {
         let edit = frame.edit
         // Below the full tier the engine renders its `live` tier at the size it is told.
         var wire = wire(frame, edit: edit, longEdge: full ? nil : plan.decodeLongEdge)
+        if exporting, edit.filmEdge.mode == .letters { wire["overscan_band"] = .string("1,1,1") }
         if !edit.filmEdge.effective, !plan.engineCuts {
             for field in Geometry.default.wire { wire[field.name] = field.value }
             if let format = plan.filmFormatMM { wire["film_format_mm"] = .double(format) }
@@ -692,9 +702,10 @@ final class EngineRouter {
     /// the size, the file and the engine — everything an export's render is,
     /// and nothing that is made after it (Edit's layer, its crop, the file's
     /// colour space). Nil for a half-frame pair, and where nothing is kept.
-    func fullAsk(_ frame: LibraryFrame, plan: ExportPlan, source: URL, isRAW: Bool) -> FullRender.Ask? {
+    func fullAsk(_ frame: LibraryFrame, plan: ExportPlan, source: URL, isRAW: Bool,
+                 exporting: Bool = false) -> FullRender.Ask? {
         guard !frame.isPair, makesPictures, let folder = originals?.copies.proxyFolder else { return nil }
-        let wire = exportWire(frame, plan: plan, full: true)
+        let wire = exportWire(frame, plan: plan, full: true, exporting: exporting)
         let stamp = DevelopStamp.of(wire: wire, cut: plan.cut, turns: plan.turnsAfter, decode: frame.edit.decode, isRAW: isRAW,
                                     longEdge: plan.decodeLongEdge ?? 0, engine: identity, origin: frame.stampOrigin)
             + "|\(plan.engineCanvas.width)x\(plan.engineCanvas.height)|\(source.lastPathComponent)"

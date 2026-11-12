@@ -58,7 +58,9 @@ enum OsP : int {
     P_CARRIER = 199,
     P_LEAKS = 200,          // up to kMaxLeaks x (s, side, amp, sigma_s, sigma_t)
     P_PAIR_ADV = 260,       // > 0: the same gate exposed again this far along (a half-frame pair)
-    P_COUNT = 261
+    P_LETTERS = 261,        // > 0.5: the letters mode — flat band, no film, the print alone
+    P_BAND_R = 262, P_BAND_G, P_BAND_B,
+    P_COUNT = 265
 };
 constexpr int kMaxLeaks = 12;
 // How far past each long edge of the film a strip scan reaches, mm.
@@ -506,11 +508,33 @@ bool Pipeline::set_overscan_frame(uint32_t frame_w, uint32_t frame_h, std::strin
     return overscan_layout(frame_w, frame_h, error);
 }
 
+// The letters mode's display colour (sRGB "r,g,b") into the render's own primaries, linear —
+// the output node's transform in reverse, on whichever side of it this data sits.
+static bool letters_colour(const Colour& colour, const std::string& field,
+                           const std::string& dst, double out[3]) {
+    double srgb[3] = {0, 0, 0};
+    if (std::sscanf(field.c_str(), "%lf,%lf,%lf", &srgb[0], &srgb[1], &srgb[2]) != 3) return false;
+    Mat3 m;
+    std::string why;
+    if (!colour.matrix_RGB_to_RGB("sRGB", dst, "CAT02", m, why)) return false;
+    const double src[3] = {colour.cctf_decode(std::clamp(srgb[0], 0.0, 1.0), "sRGB"),
+                           colour.cctf_decode(std::clamp(srgb[1], 0.0, 1.0), "sRGB"),
+                           colour.cctf_decode(std::clamp(srgb[2], 0.0, 1.0), "sRGB")};
+    for (int r = 0; r < 3; ++r) {
+        double v = 0.0;
+        for (int k = 0; k < 3; ++k) v += m.m[r][k] * src[k];
+        out[r] = std::max(0.0, v);
+    }
+    return true;
+}
+
 bool Pipeline::overscan_layout(uint32_t frame_w, uint32_t frame_h, std::string& error) {
     const OverscanParams& o = params_.film_render.overscan;
     const Format* fmt = find_format(o.format);
     if (!fmt) { error = "overscan: unknown format '" + o.format + "' (" + kFormatNames + ")"; return false; }
-    if (o.mode != "strip" && o.mode != "filed") { error = "overscan: unknown mode '" + o.mode + "' (strip, filed)"; return false; }
+    if (o.mode != "strip" && o.mode != "filed" && o.mode != "letters") {
+        error = "overscan: unknown mode '" + o.mode + "' (strip, filed, letters)"; return false;
+    }
     bool family_ok = o.gate == "auto";
     for (const char* f : kGateFamilies) family_ok = family_ok || o.gate == f;
     if (!family_ok) { error = "overscan: unknown gate '" + o.gate + "' (auto, square, rounded, eared, shouldered, kicked)"; return false; }
@@ -622,7 +646,11 @@ bool Pipeline::overscan_layout(uint32_t frame_w, uint32_t frame_h, std::string& 
 
     // --- canvas ------------------------------------------------------------
     double margin_along, t_lo, t_hi;
-    if (o.mode == "strip") {
+    // The letters mode (无边框, owner 2026-11-12) keeps strip's geometry — the print sits
+    // where it sits on the film, scan registration and all — and draws no film: honoured
+    // on the finish path alone, where no print follows the overscan to pass a colour through.
+    const bool letters = o.mode == "letters" && params_.io.finish_only;
+    if (o.mode == "strip" || o.mode == "letters") {
         // 135 full frame advances 8 perforations (38 mm) for a 36 mm gate: ~1 mm
         // a side shows. Half frame advances 4 (19 mm) for 18 mm: ~0.5 mm a side.
         margin_along = fmt->perforated ? (fmt->along < 20.0 ? rc.uni(0.40, 0.50) : rc.uni(0.75, 0.95))
@@ -741,6 +769,20 @@ bool Pipeline::overscan_layout(uint32_t frame_w, uint32_t frame_h, std::string& 
         }
     }
 
+    // The letters mode's ink (无边框, owner 2026-11-12): `custom` is the host's own display
+    // colour, converted like the band; the five presets keep the exposures tuned above (the
+    // mix clamps them). Either way the print is *mixed* onto the band — there is no film
+    // response for it to print through.
+    if (letters) {
+        const std::string dst = params_.io.finish_only ? params_.io.input_color_space
+                                                       : params_.io.output_color_space;
+        if (o.edge_color == "custom") {
+            letters_colour(*colour_, o.edge_ink, dst, L.ink);
+        } else {
+            for (int i = 0; i < 3; ++i) L.ink[i] = L.edge_rgb[i];
+        }
+    }
+
     // --- the hole: the cmy that cancels this film's base (least squares) ----
     {
         const Vec& chd = params_.film.data.channel_density;
@@ -841,6 +883,19 @@ bool Pipeline::overscan_layout(uint32_t frame_w, uint32_t frame_h, std::string& 
         }
     }
 
+    // The letters mode: the film's own light goes with the film — fog, the spool's leaks and
+    // the gate's flare are emulsion effects, and the band is a flat colour instead.
+    L.letters = letters;
+    if (letters) {
+        L.fog_amp = 0.0;
+        L.leaks.clear();
+        L.flare_amp = 0.0;
+        // The data's own primaries: the finish path still runs in the input's (nothing between
+        // the decode and here converts), the film path in the print's output's.
+        const std::string dst = params_.io.finish_only ? params_.io.input_color_space
+                                                       : params_.io.output_color_space;
+        letters_colour(*colour_, o.band, dst, L.band);
+    }
     L.valid = true;
     return true;
 }
@@ -886,6 +941,8 @@ void Pipeline::overscan_params_block(std::vector<float>& P) const {
     }
     P[P_ROUGH_AMP] = float(L.rough_amp); P[P_ROUGH_PERIOD] = float(L.rough_period); P[P_ROUGH_SEED] = float(L.rough_seed);
     P[P_HOLES_LIGHT] = L.holes_light ? 1.0f : 0.0f;
+    P[P_LETTERS] = L.letters ? 1.0f : 0.0f;
+    for (int c = 0; c < 3; ++c) P[P_BAND_R + c] = float(L.band[c]);
     P[P_CARRIER] = L.carrier_none ? 2.0f : (L.carrier_open ? 1.0f : 0.0f);   // 2: no carrier, the film runs on
     P[P_PAIR_ADV] = float(L.pair_adv);
     for (int c = 0; c < 3; ++c) P[P_LIGHT_R + c] = float(L.light_rgb[c]);
@@ -1447,7 +1504,10 @@ double text_width(const char* font, double size_mm, const std::string& text, dou
 // layout, and a stock with no reference says whose it borrows (kEdgeLooks).
 void imprint_groups(const OverscanLayout& L, const Params& params, double frame_w_mm, double frame_h_mm,
                     std::vector<Group>& out) {
-    const OverscanParams& o = params.film_render.overscan;
+    // The element switches (无边框 letters mode, owner 2026-11-12): every stock-name row in
+    // every branch is guarded by `edge_text`, so clearing it here takes the row off at once.
+    OverscanParams o = params.film_render.overscan;
+    if (!o.edge_name) o.edge_text.clear();
     const DateImprintParams& d = params.film_render.date_imprint;
     const uint64_t cam = uint64_t(uint32_t(o.camera_seed)), frm = uint64_t(uint32_t(o.frame_seed));
     Rng rf(stream(frm ^ (cam << 32), kFrame, 7));
@@ -1459,7 +1519,10 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
 
     auto group_for = [&](const double rgb[3], double e, double blur_mm) {
         Group g;
-        for (int c = 0; c < 3; ++c) g.exposure[c] = rgb[c] * e;
+        // The letters mode (无边框): the print carries the host's ink and is mixed onto the band
+        // (`spk_overscan_mix_mask`), not exposed through a film's response — there is no film.
+        if (L.letters) for (int c = 0; c < 3; ++c) g.exposure[c] = L.ink[c];
+        else for (int c = 0; c < 3; ++c) g.exposure[c] = rgb[c] * e;
         g.blur_mm = blur_mm;
         return g;
     };
@@ -1533,7 +1596,7 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
         const double clock_t0 = W - 2.17, data_t0 = W - 0.87, data_t1 = W + 0.10;
         const int m_lo = int(std::floor((s_min - grid0) / 19.0)) - 1, m_hi = int(std::ceil((s_max - grid0) / 19.0)) + 1;
         auto dx_code = [&](double s, int num, bool a_half, std::vector<Op>& dst) {
-            if (dx < 0) return;
+            if (!o.edge_marks || dx < 0) return;
             // as runs of black modules so neighbours do not seam
             int bits[23];
             dx_bits(dx, std::max(0, num), a_half, bits);
@@ -1556,6 +1619,7 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
         };
         // an arrow along the film, pointing the way it winds on
         auto wind_arrow = [&](double a0, double a1, double tc, double head, double half_h) {
+            if (!o.edge_marks) return;
             bot.ops.push_back(rect(a0, tc - 0.09, a1 - 0.75 * head, tc + 0.09));
             Op h;
             h.kind = Op::Poly;
@@ -1584,7 +1648,7 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
                 // The widened bold numerals are tracked apart (0.25 mm), or the develop
                 // blooms "22" into one shape; the strips' "19", "24", "25" keep a gap.
                 Op op = helv(light ? "HelveticaNeue" : "HelveticaNeue-Bold", cap_t, kCap, light ? 1.0 : 1.25, light ? 0.04 : 0.25);
-                if (!a_half) {
+                if (!a_half && o.edge_number) {
                     op.text = std::to_string(num); op.s = s + 16.9; op.t = base_t; top.ops.push_back(op);
                 } else if (!o.edge_text.empty()) {
                     // From the name to the next number at s + 19 + 16.9, less a space.
@@ -1614,12 +1678,12 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
                 if (a_half) {
                     nb.text = std::to_string(num) + "A";
                     nb.size_mm = 0.90 / kCap; nb.s = s + 15.3; nb.t = W - 0.84;
-                    bot.ops.push_back(nb);
+                    if (o.edge_number) bot.ops.push_back(nb);
                     wind_arrow(s + 14.47, s + 18.07, W - 0.28, 0.6, 0.26);
                 } else {
                     nb.text = std::to_string(num);
                     nb.s = s + 16.0; nb.t = W - 0.14;
-                    bot.ops.push_back(nb);
+                    if (o.edge_number) bot.ops.push_back(nb);
                 }
             } else if (fuji_neg) {
                 // X-Tra 400 (32.0 px/mm): numbers on both bands, the full
@@ -1639,13 +1703,14 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
                 // character every 0.9 mm), twelve rows 1.2 mm tall.
                 const std::string n = std::to_string(num) + (a_half ? "A" : "");
                 const double ps = 0.090;
-                dot_text(n, kFaceSmall, ps, kDotT, kDot, 4.0, s + (a_half ? 16.38 : 15.75), 1.60, &top.ops);
+                if (o.edge_number) dot_text(n, kFaceSmall, ps, kDotT, kDot, 4.0, s + (a_half ? 16.38 : 15.75), 1.60, &top.ops);
                 if (a_half && !o.edge_text.empty())
                     dot_text(fit_dots(o.edge_text, 9.8, kFaceNames, kDotS, kDot, 4.0), kFaceNames, kDotS, kDotT, kDot, 4.0,
                              s + 5.5, 1.50, &top.ops);
                 dx_code(s, num, a_half, bot.ops);
-                dot_text(n, kFaceSmall, ps, kDotT, kDot, 4.0, s + (a_half ? 16.1 : 15.25), a_half ? W - 0.41 : W - 0.31,
-                         &bot.ops);
+                if (o.edge_number)
+                    dot_text(n, kFaceSmall, ps, kDotT, kDot, 4.0, s + (a_half ? 16.1 : 15.25), a_half ? W - 0.41 : W - 0.31,
+                             &bot.ops);
                 if (a_half) wind_arrow(s + 14.6, s + 15.85, W - 1.0, 0.55, 0.3);
             } else if (look.k135 == Edge135::FujiSlide) {
                 // RVP50 (31.2 px/mm), RDPIII (21.5) and the owner's RDP III
@@ -1665,14 +1730,14 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
                 const double sn = L.perf_phase + 0.56 + 3.5 + 19.0 * m;
                 if (!a_half) {
                     const std::string n = std::to_string(num);
-                    dot_text(n, kFaceNumbers, kDotS, kDotT, kDot, 4.0, sn, 1.80, &top.ops);
-                    dot_text(n, kFaceNumbers, kDotS, kDotT, kDot, 4.0, sn + 0.1, W - 0.27, &bot.ops);
+                    if (o.edge_number) dot_text(n, kFaceNumbers, kDotS, kDotT, kDot, 4.0, sn, 1.80, &top.ops);
+                    if (o.edge_number) dot_text(n, kFaceNumbers, kDotS, kDotT, kDot, 4.0, sn + 0.1, W - 0.27, &bot.ops);
                     if (!o.edge_text.empty())
                         dot_text(fit_dots(o.edge_text, 21.0, kFaceNames, kDotS, kDot, 10.0), kFaceNames, kDotS, kDotT, kDot,
                                  10.0, sn + 16.0, 1.77, &top.ops);
                 } else {
                     const double sa = sn - 19.0;                 // the full frame this half belongs to
-                    dot_text("36", kFaceTiny, 0.135, kDotT, kDot, 4.0, sa + 14.75, W - 0.40, &bot.ops);
+                    if (o.edge_number) dot_text("36", kFaceTiny, 0.135, kDotT, kDot, 4.0, sa + 14.75, W - 0.40, &bot.ops);
                     // The arrow is dots too -- 22 across, 12 down, read off the
                     // RDP III strip and RVP50.png: a box two dots thick, open
                     // toward a head whose sides are five or six dots thick and
@@ -1685,8 +1750,9 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
                         "##...........######...", "##.........######.....", "###############.......", "#############.........",
                     };
                     const double foot = W - 0.40;                // the arrow and "12A" stand on one line
-                    dot_rows(kArrow, 12, 22, sa + 16.05 + 0.5 * kDot, foot - 0.5 * kDot - 11 * kDotT, kDotS, kDotT, kDot, &bot.ops);
-                    dot_text(std::to_string(num) + "A", kFaceSmall, kDotS, kDotT, kDot, 4.0, sa + 18.88, foot, &bot.ops);
+                    if (o.edge_marks)
+                        dot_rows(kArrow, 12, 22, sa + 16.05 + 0.5 * kDot, foot - 0.5 * kDot - 11 * kDotT, kDotS, kDotT, kDot, &bot.ops);
+                    if (o.edge_number) dot_text(std::to_string(num) + "A", kFaceSmall, kDotS, kDotT, kDot, 4.0, sa + 18.88, foot, &bot.ops);
                 }
             } else if (ilford) {
                 // HP5 Plus (one 135 strip, 29.7 px/mm): what Kodak prints,
@@ -1710,11 +1776,11 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
                 const size_t t0 = top.ops.size(), b0 = bot.ops.size();
                 dx_code(0.0, num, a_half, top.ops);
                 if (a_half) {
-                    matrix_text(std::to_string(num) + "A", 1.20, 1.0, false, 14.9, W - 0.35, &top.ops);
+                    if (o.edge_number) matrix_text(std::to_string(num) + "A", 1.20, 1.0, false, 14.9, W - 0.35, &top.ops);
                     if (!o.edge_text.empty())
                         matrix_text(fit_matrix_text(o.edge_text, 26.0, 1.50, 1.0, false), 1.50, 1.0, false, 8.7, 1.85, &bot.ops);
                 } else {
-                    matrix_text(std::to_string(num), 1.60, 1.0, true, 14.6, W - 0.35, &top.ops);
+                    if (o.edge_number) matrix_text(std::to_string(num), 1.60, 1.0, true, 14.6, W - 0.35, &top.ops);
                 }
                 auto turn = [&](std::vector<Op>& ops, size_t from) {
                     for (size_t i = from; i < ops.size(); ++i)
@@ -1761,7 +1827,7 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
                     bot.ops.push_back(op);
                 };
                 if (numbered) {
-                    mono(std::to_string(num), 1.68, 1.28, sN, W - 0.02);
+                    if (o.edge_number) mono(std::to_string(num), 1.68, 1.28, sN, W - 0.02);
                     if (!o.edge_text.empty())
                         matrix_text(fit_matrix_text(o.edge_text, 36.0, 1.38, 1.16, false), 1.38, 1.16, false, sN - 6.21, 1.64,
                                     &top.ops);
@@ -1770,11 +1836,11 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
                     // the arrow's tiers, foot to needle: (end along, half height)
                     static const double kTier[4][2] = {{0.37, 0.455}, {0.80, 0.365}, {1.08, 0.235}, {1.50, 0.094}};
                     double a0 = 0.0;
-                    for (const auto& tr : kTier) {
+                    if (o.edge_marks) for (const auto& tr : kTier) {
                         bot.ops.push_back(rect(sa + a0, tc - tr[1], sa + tr[0] + 0.01, tc + tr[1]));
                         a0 = tr[0];
                     }
-                    mono(std::to_string(num) + "A", 1.00, 1.25, sa + 1.50 + 0.25, W - 0.50);
+                    if (o.edge_number) mono(std::to_string(num) + "A", 1.00, 1.25, sa + 1.50 + 0.25, W - 0.50);
                 }
             } else {
                 // Cine (Eastman 5207, 22.8 px/mm): one line beside the bottom
@@ -1856,7 +1922,9 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
                 if (!before.empty()) big(before, sn - 3.7 - wb, tb, &top.ops);
                 if (n < 1) continue;
                 const std::string ns = std::to_string(n);
-                const double wn = big(ns, sn, tb, &top.ops);
+                const size_t branch_ops = top.ops.size();
+                const double wn = big(ns, sn, tb, &top.ops);   // the width still places the tack
+                if (!o.edge_number) top.ops.resize(branch_ops);
                 // The marker is a tack in the same dots, 13 across and 7 down
                 // (2.1 x 1.05 mm, as tall as the caps): a needle three dots
                 // long, then three steps of three or four dots, each two rows
@@ -1865,7 +1933,7 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
                 static const char* const kTack[7] = {"..........###", "......#######", "...##########", "#############",
                                                      "...##########", "......#######", "..........###"};
                 const double a = sn + wn + 1.45;
-                dot_rows(kTack, 7, 13, a + 0.5 * d120, tb - 0.5 * d120 - 6 * pt, ps, pt, d120, &top.ops);
+                if (o.edge_marks) dot_rows(kTack, 7, 13, a + 0.5 * d120, tb - 0.5 * d120 - 6 * pt, ps, pt, d120, &top.ops);
                 if (!name.empty()) {
                     const bool has_code = look.code[0] != 0;
                     const double s0 = a + 4.95;
@@ -1915,7 +1983,9 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
                 const int n = n0 + j;
                 if (n < 1) continue;
                 const double sn = -roll + j * P;
+                const size_t narrow_ops = top.ops.size();
                 const double wn = narrow(std::to_string(n), 0.92, 1.12, sn, tb, top.ops);
+                if (!o.edge_number) top.ops.resize(narrow_ops);
                 Op w;
                 w.kind = Op::Poly;
                 const double a = sn + wn + 0.17, tc = tb - 0.5;
@@ -1928,7 +1998,9 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
             const int k_lo = int(std::floor((s_min + roll2) / Q)) - 1, k_hi = int(std::ceil((s_max + roll2) / Q)) + 1;
             for (int k = k_lo; k <= k_hi; ++k) {
                 const double sb = -roll2 + k * Q;
+                const size_t batch_ops = bot.ops.size();
                 const double wb = narrow(batch, 1.15, 1.0, sb, base, bot.ops);
+                if (!o.edge_marks) bot.ops.resize(batch_ops);   // the width still places the name
                 if (!o.edge_text.empty()) {
                     std::string tx = o.edge_text;
                     while (!tx.empty() && text_width("ArialNarrow", 1.15 / 0.716, tx, 0.0, 1.13) > 20.0) tx.pop_back();
@@ -1977,7 +2049,9 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
                 Op num;
                 num.size_mm = size; num.tracking_mm = kNumTrack; num.hscale = kWide; num.scale_advances = true;
                 num.text = std::to_string(n0 + j); num.s = s; num.t = t_top;
-                top.ops.push_back(num);
+                const size_t seg_ops = top.ops.size();
+                top.ops.push_back(num);          // `num.text` still measures the name below
+                if (!o.edge_number) top.ops.resize(seg_ops);
                 if (!o.edge_text.empty()) {
                     // The name sits centred between one number and the next,
                     // not at a fixed offset: "KODAK PORTRA 400" (27 mm) runs
@@ -2022,7 +2096,7 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
                 Op tri;
                 tri.kind = Op::Poly;
                 tri.pts = {s, t_bot - mh, s + 1.83 * mh, t_bot - 0.5 * mh, s, t_bot};
-                bot.ops.push_back(tri);
+                if (o.edge_marks) bot.ops.push_back(tri);
                 if (((k % 2) + 2) % 2 == 0) {
                     const int digit = o.frame_number > 0 ? o.frame_number + (k - k_first) / 2
                                                          : 1 + ((k / 2) % 9 + 9) % 9;
@@ -2031,7 +2105,7 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
                     dg.size_mm = 1.15 / 0.714; dg.hscale = kWide; dg.tracking_mm = kNumTrack; dg.scale_advances = true;
                     dg.text = std::to_string(digit);
                     dg.s = s + 2.8; dg.t = t_bot;
-                    bot.ops.push_back(dg);
+                    if (o.edge_number) bot.ops.push_back(dg);
                 }
             }
         }
@@ -2356,9 +2430,14 @@ bool Pipeline::node_overscan(const Image& in, Image& out, std::string& error) {
         const float M[9] = {float(x0), float(y0), float(w), float(h), float(canvas.w), float(canvas.h),
                             float(gg.exposure[0]), float(gg.exposure[1]), float(gg.exposure[2])};
         const uint32_t n[1] = {uint32_t(size_t(w) * size_t(h))};
-        if (!gpu_->dispatch("spk_overscan_add_mask",
+        // The letters mode mixes the print onto its band — adding would saturate a light band
+        // away — and always onto the canvas: the factory's faint add-back is a film path's.
+        const bool letters_mode = overscan_.letters;
+        const char* op = letters_mode ? "spk_overscan_mix_mask" : "spk_overscan_add_mask";
+        gpu::BufferRef target = (!letters_mode && separate && gg.factory) ? factory_exposure_.buf : canvas.buf;
+        if (!gpu_->dispatch(op,
                             {gpu::Arg::buf(mb), gpu::Arg::inline_bytes(M, 9), gpu::Arg::inline_bytes(n, 1),
-                             gpu::Arg::buf(separate && gg.factory ? factory_exposure_.buf : canvas.buf)},
+                             gpu::Arg::buf(target)},
                             size_t(w) * size_t(h), error)) return false;
     }
     out = canvas;
