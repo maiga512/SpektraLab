@@ -323,29 +323,55 @@ struct DevelopCanvas: View {
                             : (showsSplit ? L("Original and developed, split") : L("The developed picture")))
         .accessibilityValue(zoomText)
         .task(id: originalKey) {
-            guard allowsOriginalHold else { return }
-            sourceReady = false; sourceLoading = true
-            if let pair = frame.pair {
-                pairOriginal = nil
-                let made = await PairOriginalPreview.make(pair: pair, frames: model.darkroom.held(by: pair),
-                                     rects: piece?.rects, aspect: aspect)
-                guard !Task.isCancelled else { return }
-                pairOriginal = made; sourceReady = made != nil; sourceLoading = false
-                #if DEBUG
-                PairOriginalPreview.onCanvasReady?(frame.id, made)
-                #endif
-                return
-            }
-            let image = await PictureLoading.picture(frame.originalPicture ?? frame.picture, maxPixel: 1600)
-            guard !Task.isCancelled else { return }
-            sourceReady = image != nil; sourceLoading = false
+            await loadOriginal(why: "open")
         }
-        .onChange(of: holdingOriginal) { _, active in if !active { holdCancelled = false } }
+        // A hold that found nothing: ask again (the owner, 2026-11-12: "调节好了按空格，有时候
+        // 不能显示原图"). The load at open is one shot — a failure or a cancellation left
+        // `sourceReady` false with nothing to retry it, and every later hold on this frame was
+        // silently dead. A request that arrives with no source reloads it; the monitor's own
+        // gate log shows the keys were taken, so the miss is here.
+        .onChange(of: showsOriginal, initial: false) { _, on in
+            guard on, !sourceReady else { return }
+            NSLog("[space-original] original requested with no source ready (loading=%d, key=%@): reloading",
+                  sourceLoading ? 1 : 0, originalKey)
+            Task { await loadOriginal(why: "requested") }
+        }
+        // `holdCancelled` is cleared when a hold **begins**, not when it ends: cleared on release
+        // only, a pinch (or the app going to the background) left it true with no hold running, and
+        // *the next hold showed nothing* — the hold after that worked, which is exactly the
+        // "sometimes it does nothing" the owner reported on 2026-11-11. A pinch still cancels the
+        // hold it interrupted: the flag stays true until a new hold starts.
+        .onChange(of: holdingOriginal) { _, active in if active { holdCancelled = false } }
         .onChange(of: pinchBase != nil) { _, active in if active { holdCancelled = true } }
         .onChange(of: scenePhase) { _, phase in if phase != .active { holdCancelled = true } }
     }
 
     // MARK: the picture
+
+    /// The original's source at `originalKey`: one decode at1600 px, ready before the first
+    /// hold. `reason` lands in the log with the outcome — the miss this fixes never said.
+    private func loadOriginal(why: String) async {
+        guard allowsOriginalHold else { return }
+        sourceReady = false
+        sourceLoading = true
+        if let pair = frame.pair {
+            pairOriginal = nil
+            let made = await PairOriginalPreview.make(pair: pair, frames: model.darkroom.held(by: pair),
+                                 rects: piece?.rects, aspect: aspect)
+            guard !Task.isCancelled else { return }
+            pairOriginal = made; sourceReady = made != nil; sourceLoading = false
+            NSLog("[space-original] source (%@): pair ready=%d", why, made != nil ? 1 : 0)
+            #if DEBUG
+            PairOriginalPreview.onCanvasReady?(frame.id, made)
+            #endif
+            return
+        }
+        let image = await PictureLoading.picture(frame.originalPicture ?? frame.picture, maxPixel: 1600)
+        guard !Task.isCancelled else { return }
+        sourceReady = image != nil
+        sourceLoading = false
+        NSLog("[space-original] source (%@): ready=%d key=%@", why, image != nil ? 1 : 0, originalKey)
+    }
 
     private var originalKey: String {
         if let pair = frame.pair {

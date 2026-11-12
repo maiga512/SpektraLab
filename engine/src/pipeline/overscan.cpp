@@ -779,10 +779,10 @@ bool Pipeline::overscan_layout(uint32_t frame_w, uint32_t frame_h, std::string& 
     }
 
     // The letters mode's ink (无边框, owner 2026-11-12): `custom` is the host's own display
-    // colour, converted like the band; the five presets keep the exposures tuned above (the
-    // finish clamps them into the mix; the film path prints them as exposures, and every
-    // colour a film's print makes goes through the film).
-    if (letters_mode) {
+    // colour, converted like the band — computed wherever the custom ink can land, which now
+    // includes a strip (it fell back to the film's own there, silently). The five presets keep
+    // the exposures tuned above.
+    if (letters_mode || o.edge_color == "custom") {
         const std::string dst = params_.io.finish_only ? params_.io.input_color_space
                                                        : params_.io.output_color_space;
         if (o.edge_color == "custom") {
@@ -1531,12 +1531,16 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
 
     auto group_for = [&](const double rgb[3], double e, double blur_mm) {
         Group g;
-        // The letters mode (无边框): the host's custom ink is exact on the finish path (mixed
-        // onto the band), and an exposure on the film path — where every colour the print makes
-        // goes through the film, presets included. Otherwise the film response, as always.
-        if (L.letters_mode && o.edge_color == "custom") for (int c = 0; c < 3; ++c) g.exposure[c] = L.ink[c];
+        // The host's custom ink is the colour asked for wherever the print lands (it was
+        // letters-only, and on a strip it fell back to the film's own — the owner's strip with
+        // a custom colour showed the stock's instead). On the film path it is an exposure
+        // through the negative, as every colour there is.
+        if (o.edge_color == "custom") for (int c = 0; c < 3; ++c) g.exposure[c] = L.ink[c];
         else for (int c = 0; c < 3; ++c) g.exposure[c] = rgb[c] * e;
-        g.blur_mm = blur_mm;
+        // The finish path's letters carry no film's develop spread (无边框: `L.letters`): a
+        // stroke is drawn solid, so its colour is the colour asked for rather than a wash of
+        // the picture beneath. The film path keeps the spread — there it is the film's.
+        g.blur_mm = L.letters ? 0 : blur_mm;
         return g;
     };
     // The letters mode's remap (无边框, the owner's clarification, 2026-11-12): the print was
@@ -2450,6 +2454,44 @@ bool Pipeline::node_overscan(const Image& in, Image& out, std::string& error) {
         imprint_groups(second, pb_, frame_w_mm_, frame_h_mm_, with);
         if (with.size() > without.size()) groups.push_back(with.back());
     }
+    // The FILM path's letters: gather their coverage instead of exposing the negative with
+    // it — over a bright picture that clipped to white and the colour never reached the frame
+    // (the owner's JPG, 2026-11-12). The ink is the majority group exposure (the name row, the
+    // numbers and the marks share it), encoded to the frame's own curve; a group that differs
+    // (a date) keeps its exposure and its old way down.
+    const bool film_letters = overscan_.letters_mode && !overscan_.letters && !groups.empty();
+    double gather_ink[3] = {0, 0, 0};
+    if (film_letters) {
+        size_t best = 0;
+        for (size_t i = 0; i < groups.size(); ++i) {
+            size_t votes = 0;
+            for (size_t j = 0; j < groups.size(); ++j)
+                if (groups[j].exposure[0] == groups[i].exposure[0] &&
+                    groups[j].exposure[1] == groups[i].exposure[1] &&
+                    groups[j].exposure[2] == groups[i].exposure[2]) ++votes;
+            if (votes > best) {
+                best = votes;
+                for (int c = 0; c < 3; ++c) gather_ink[c] = groups[i].exposure[c];
+            }
+        }
+        const size_t npix = size_t(canvas.w) * size_t(canvas.h);
+        std::vector<float> cleared(npix, 0.0f);
+        gpu::BufferRef mk = gpu_->upload(cleared.data(), cleared.size() * sizeof(float), error);
+        if (!mk) return false;
+        letters_mask_ = Image{};
+        letters_mask_.buf = mk;
+        letters_mask_.w = canvas.w;
+        letters_mask_.h = canvas.h;
+        letters_mask_.c = 1;
+        for (int c = 0; c < 3; ++c)
+            letters_ink_[c] = float(colour_->cctf_encode(std::clamp(gather_ink[c], 0.0, 1.0),
+                                                         params_.io.output_color_space));
+        letters_film_ = true;
+    } else {
+        letters_film_ = false;
+        letters_mask_ = Image{};
+    }
+
     const bool separate = !std::getenv("SPK_V2_REFERENCE_OPTICAL");
     if (separate) {
         const double zero[3] = {0, 0, 0};
@@ -2467,16 +2509,43 @@ bool Pipeline::node_overscan(const Image& in, Image& out, std::string& error) {
         const uint32_t n[1] = {uint32_t(size_t(w) * size_t(h))};
         // The letters mode mixes the print onto its band — adding would saturate a light band
         // away — and always onto the canvas: the factory's faint add-back is a film path's.
-        const bool letters_mode = overscan_.letters;
-        const char* op = letters_mode ? "spk_overscan_mix_mask" : "spk_overscan_add_mask";
-        gpu::BufferRef target = (!letters_mode && separate && gg.factory) ? factory_exposure_.buf : canvas.buf;
-        if (!gpu_->dispatch(op,
-                            {gpu::Arg::buf(mb), gpu::Arg::inline_bytes(M, 9), gpu::Arg::inline_bytes(n, 1),
-                             gpu::Arg::buf(target)},
-                            size_t(w) * size_t(h), error)) return false;
+        const bool finish_letters = overscan_.letters;
+        const bool gather = film_letters && gg.exposure[0] == gather_ink[0]
+                                           && gg.exposure[1] == gather_ink[1]
+                                           && gg.exposure[2] == gather_ink[2];
+        if (gather) {
+            if (!gpu_->dispatch("spk_letters_mask",
+                                {gpu::Arg::buf(mb), gpu::Arg::inline_bytes(M, 9), gpu::Arg::inline_bytes(n, 1),
+                                 gpu::Arg::buf(letters_mask_.buf)},
+                                size_t(w) * size_t(h), error)) return false;
+        } else {
+            const char* op = finish_letters ? "spk_overscan_mix_mask" : "spk_overscan_add_mask";
+            gpu::BufferRef target = (!finish_letters && separate && gg.factory) ? factory_exposure_.buf : canvas.buf;
+            if (!gpu_->dispatch(op,
+                                {gpu::Arg::buf(mb), gpu::Arg::inline_bytes(M, 9), gpu::Arg::inline_bytes(n, 1),
+                                 gpu::Arg::buf(target)},
+                                size_t(w) * size_t(h), error)) return false;
+        }
     }
     out = canvas;
     return true;
+}
+
+/// The film path's letters, after the output curve: the coverage the overscan gathered is
+/// mixed onto the finished frame in the display domain, with the ink encoded to match — the
+/// exposure on the negative could not hold a colour over a bright picture (the owner's JPG,
+/// 2026-11-12: "字没有颜色，接近于白色").
+bool Pipeline::node_letters_overlay(const Image& in, Image& out, std::string& error) {
+    if (!letters_film_ || !letters_mask_.buf) { out = in; return true; }
+    Timer t(this, "filming.letters");
+    if (!alloc_like(in, out, error)) return false;
+    const uint32_t n[1] = {uint32_t(in.pixels())};
+    const float ink[3] = {letters_ink_[0], letters_ink_[1], letters_ink_[2]};
+    return gpu_->dispatch("spk_letters_overlay",
+                          {gpu::Arg::buf(in.buf), gpu::Arg::buf(letters_mask_.buf),
+                           gpu::Arg::inline_bytes(ink, 3), gpu::Arg::inline_bytes(n, 1),
+                           gpu::Arg::buf(out.buf)},
+                          in.pixels(), error);
 }
 
 bool Pipeline::node_overscan_film_present(const Image& in, Image& out, std::string& error) {

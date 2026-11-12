@@ -2303,6 +2303,9 @@ bool Pipeline::print_output(const Chain& in, Chain& out, std::string& error) {
     // segment's last call -- the destination is the caller's `out.cur`, not a
     // scratch buffer, and `node_cctf` allocates it.
     SPK_NODE(node_cctf(cur, out.cur, error));
+    // The film path's letters, in the display domain (the exposure on the negative could not
+    // hold their colour over a bright picture).
+    SPK_NODE(node_letters_overlay(out.cur, out.cur, error));
     return true;
 }
 

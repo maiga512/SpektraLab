@@ -34,6 +34,13 @@ struct SpaceOriginalKey: ViewModifier {
             .background {
                 SpaceOriginalToken { held in
                     if held {
+                        // The two silent gates of the three (the monitor's own are logged in
+                        // `take`): a hold that does nothing now says which one stopped it
+                        // (the owner, 2026-11-12: "有时候不能显示原图").
+                        if !hasOriginal || blocked {
+                            NSLog("[space-original] held but stood down: hasOriginal=%d blocked=%d",
+                                  hasOriginal ? 1 : 0, blocked ? 1 : 0)
+                        }
                         guard hasOriginal, !blocked else { return }
                         comparing = false
                         original = true
@@ -122,7 +129,19 @@ final class SpaceOriginalMonitor {
         let flags = (e.value(forKey: "modifierFlags") as? NSNumber)?.uintValue ?? 0
         guard holder != nil,
               flags & 0xFFFF_0000 & ~0x1_0000 == 0,
-              !MacShortcutRegistry.shared.typing, !MacAppKitEdit.owns else { return object }
+              !MacShortcutRegistry.shared.typing, !MacAppKitEdit.owns else {
+            // A page is up and this space did nothing (the owner, 2026-11-12: "有时候会失效").
+            // The gates are all state read at the event, so the reason is only knowable at the
+            // event too: log it, so the next time it happens the log says which gate said no
+            // instead of a guess. Firing only with a holder means never while no develop page
+            // is up — a space in the search field stays out of this.
+            if holder != nil {
+                NSLog("[space-original] not taken: holder=yes typing=%d appkitOwns=%d flags=%#llx",
+                      MacShortcutRegistry.shared.typing ? 1 : 0, MacAppKitEdit.owns ? 1 : 0,
+                      UInt64(flags))
+            }
+            return object
+        }
         held = true
         holder?(true)
         return nil

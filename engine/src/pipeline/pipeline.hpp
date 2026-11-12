@@ -803,6 +803,14 @@ private:
     // RFC-032 §27: kept across a reprint of the cached negative, which the
     // print side's no-film mask must match pixel for pixel.
     Image factory_exposure_; // only alive from mark rasterization through film_blurs
+    /// The film path's letters (无边框): their coverage at canvas size, gathered at the
+    /// overscan and mixed onto the frame AFTER the output curve — as an exposure on the
+    /// negative they clipped to white over a bright picture (the owner's JPG, 2026-11-12:
+    /// "字没有颜色，接近于白色"), and only the display domain carries the colour asked for.
+    Image letters_mask_;
+    float letters_ink_[3] = {0, 0, 0};
+    bool letters_film_ = false;
+    bool node_letters_overlay(const Image& in, Image& out, std::string& error);
     OverscanLayout overscan_;
     double frame_w_mm_ = 0.0, frame_h_mm_ = 0.0;
 

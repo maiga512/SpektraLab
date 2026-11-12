@@ -214,6 +214,39 @@ def main() -> int:
         check(moved > 0.1,
               f"the lettering is on the band: with the words taken away the band moves by {moved:.3f}")
 
+        # The film path's letters (the owner, 2026-11-12: "JPG 纯粹非常的淡，字没有颜色，
+        # 接近于白色"): on a bright border the print must still be the colour asked for —
+        # exposure-add there clipped to white, which is what he saw.
+        # The 135 gate's own shape (36.25 x 24.3): a white frame with the photo inside it.
+        white = np.full((240, 358, 3), 0.97, dtype=np.float32)
+        white[40:200, 59:299] = photo[:160, :240] if photo.shape[0] >= 160 and photo.shape[1] >= 240 else 0.5
+        # The FILM path: finish_only off — the print is an exposure through the negative.
+        border = {"finish_only": False, "overscan_mode": "letters", "overscan_edge_color": "custom",
+                  "overscan_edge_ink": "1,0.8,0.2", "overscan_frame_number": 12,
+                  "overscan_edge_text": "PORTRA 400"}
+        f_on = render(white, **border)
+        f_off = render(white, **{**border, "overscan_edge_text": "", "overscan_edge_name": False,
+                                 "overscan_frame_number": 0})
+        dd = np.abs(f_on - f_off).max(2)
+        yy, xx = np.nonzero(dd > 0.05)
+        check(len(yy) > 500, f"the film path draws its letters over a white border ({len(yy)} px)")
+        if len(yy):
+            sub, ink = f_off[yy, xx], f_on[yy, xx]
+            onwhite = sub.max(1) > 0.9
+            check(int(onwhite.sum()) > 200, f"the film path's letters land on the border ({int(onwhite.sum())} px)")
+            # Stroke bodies only: strong deltas over a NEUTRAL substrate (the print's own grey of
+        # the white border), so the layout shift a switch makes cannot dilute the metric —
+        # and at those the ink must be the colour asked for.
+        neutral = (sub.max(1) - sub.min(1)) < 0.08
+        strong = dd[yy, xx] > 0.25
+        bodies = neutral & (sub.max(1) > 0.55) & strong
+        check(int(bodies.sum()) > 100, f"the film path's letter bodies are findable ({int(bodies.sum())} px)")
+        if bodies.sum():
+            i = ink[bodies]
+            yellow = ((i[:, 0] > i[:, 2] + 0.25) & (i[:, 1] > i[:, 2] + 0.15)).mean()
+            check(float(yellow) > 0.6,
+                  f"the film path's ink is the colour asked for (yellow fraction {float(yellow):.3f})")
+
     print(f"edge letters checks: {passed} passed, {failed} failed")
     return 1 if failed else 0
 

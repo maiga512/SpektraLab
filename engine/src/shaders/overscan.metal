@@ -241,10 +241,50 @@ kernel void spk_overscan_add_mask(device const float* mask [[buffer(0)]],
     canvas[o + 2u] += c * M[8];
 }
 
+// ③a: a lettering group's coverage gathered for the film path's overlay (one channel: the
+// pixel's own index). The largest coverage wins where two groups overlap — letters rarely do.
+kernel void spk_letters_mask(device const float* m [[buffer(0)]],
+                             device const float* M [[buffer(1)]],
+                             device const uint* n [[buffer(2)]],
+                             device float* out [[buffer(3)]],
+                             uint3 tid [[thread_position_in_grid]]) {
+    const uint i = tid.x;
+    if (i >= n[0]) return;
+    const uint mw = uint(M[2]);
+    const int x = int(M[0]) + int(i % mw), y = int(M[1]) + int(i / mw);
+    if (x < 0 || y < 0 || x >= int(M[4]) || y >= int(M[5])) return;
+    const uint o = uint(y) * uint(M[4]) + uint(x);
+    out[o] = max(out[o], m[i]);
+}
+
 // ③b: a rasterised imprint mixed onto the band (the letters mode, 无边框, owner 2026-11-12):
 // the band is not a black rebate, so adding would saturate a light band away and the print
 // would vanish. The ink clamps to display range — the five presets were tuned to punch a
 // black rebate and their exposures exceed it.
+// ③d: the film path's letters after the output curve (the owner's JPG, 2026-11-12): the
+// gathered coverage mixed onto the finished frame in the display domain, the body pushed
+// solid as the finish path's mix pushes it.
+kernel void spk_letters_overlay(device const float* src [[buffer(0)]],
+                                device const float* mask [[buffer(1)]],
+                                device const float* ink [[buffer(2)]],
+                                device const uint* n [[buffer(3)]],
+                                device float* dst [[buffer(4)]],
+                                uint3 tid [[thread_position_in_grid]]) {
+    const uint i = tid.x;
+    if (i >= n[0]) return;
+    const uint o = 3u * i;
+    const float c = smoothstep(0.30f, 0.80f, mask[i]);
+    if (c <= 0.0f) {
+        dst[o] = src[o];
+        dst[o + 1u] = src[o + 1u];
+        dst[o + 2u] = src[o + 2u];
+        return;
+    }
+    dst[o] = mix(src[o], ink[0], c);
+    dst[o + 1u] = mix(src[o + 1u], ink[1], c);
+    dst[o + 2u] = mix(src[o + 2u], ink[2], c);
+}
+
 kernel void spk_overscan_mix_mask(device const float* mask [[buffer(0)]],
                                   device const float* M [[buffer(1)]],
                                   device const uint* n [[buffer(2)]],
@@ -255,8 +295,14 @@ kernel void spk_overscan_mix_mask(device const float* mask [[buffer(0)]],
     const uint mw = uint(M[2]);
     const int x = int(M[0]) + int(i % mw), y = int(M[1]) + int(i / mw);
     if (x < 0 || y < 0 || x >= int(M[4]) || y >= int(M[5])) return;
-    const float c = mask[i];
-    if (c <= 0.0f) return;
+    const float raw = mask[i];
+    if (raw <= 0.0f) return;
+    // A stroke's body, pushed: partial coverage is the raster's edge and the develop's
+    // spread. On a black rebate it still read — over a photograph it dissolved into it,
+    // worst on a bright edge (the owner, 2026-11-12: the letters came out "非常淡",
+    // pure on a JPEG, visible but pale on a RAW). The body goes solid; only the
+    // anti-aliased rim stays partial.
+    const float c = smoothstep(0.30f, 0.80f, raw);
     const uint o = 3u * (uint(y) * uint(M[4]) + uint(x));
     const float3 ink = clamp(float3(M[6], M[7], M[8]), 0.0f, 1.0f);
     canvas[o]      = mix(canvas[o],      ink.x, c);
