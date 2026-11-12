@@ -96,10 +96,14 @@ enum FilmLayout {
 
         // --- canvas
         let marginAlong: Double
-        // The letters mode (无边框, owner 2026-11-12) keeps strip's geometry — the ported
-        // statement runs the same way the engine's `overscan_layout` does: the print sits
-        // where it sits on the film; only no film is drawn in it.
-        if r.mode == .strip || r.mode == .letters {
+        // The letters mode (无边框), v2 as the owner clarified it, 2026-11-12: **the canvas IS
+        // the picture** — no film, no band, no room around it; the print is remapped inside
+        // (`imprints`), exactly as the engine's `overscan_layout` does.
+        if r.mode == .letters {
+            marginAlong = 0.0
+            L.tLo = L.gateT0
+            L.tHi = L.gateT0 + L.gateAcross
+        } else if r.mode == .strip {
             if fmt.isPerforated {
                 marginAlong = fmt.alongMM < 20.0 ? rc.uni(0.40, 0.50) : rc.uni(0.75, 0.95)
             } else {
@@ -129,9 +133,9 @@ enum FilmLayout {
         // --- scan registration: capped by how far it moves the film's ends
         let halfAlong = 0.5 * Double(alongPx) * L.px
         let tiltLim = min(0.35, asin(min(1.0, 0.27 / halfAlong)) * 180.0 / .pi)
-        L.scanRot = min(max(rf.normal() * 0.14, -tiltLim), tiltLim) * .pi / 180.0
-        let ds = rf.normal() * 0.08
-        let dt = rf.normal() * 0.06
+        L.scanRot = r.mode == .letters ? 0 : min(max(rf.normal() * 0.14, -tiltLim), tiltLim) * .pi / 180.0
+        let ds = r.mode == .letters ? 0.0 : rf.normal() * 0.08
+        let dt = r.mode == .letters ? 0.0 : rf.normal() * 0.06
         L.cu = 0.5 * Double(L.canvas.width) * L.px
         L.cv = 0.5 * Double(L.canvas.height) * L.px
         let c = cos(L.scanRot), sn = sin(L.scanRot)
@@ -147,7 +151,7 @@ enum FilmLayout {
         L.extraTurns = (((r.turn - base) % 4) + 4) % 4
         L.out = L.extraTurns % 2 == 0 ? L.canvas : PixelSize(width: L.canvas.height, height: L.canvas.width)
 
-        imprints(&L)
+        imprints(&L, letters: r.mode == .letters)
         return L
     }
 
@@ -298,7 +302,7 @@ enum FilmLayout {
     /// (`kIlfordCode`).
     private static let ilfordCode = 2.85
 
-    private static func imprints(_ L: inout FilmGeometry) {
+    private static func imprints(_ L: inout FilmGeometry, letters: Bool) {
         let o = L.request
         let look = EdgeLook.of(o.stockID)
         let cam = UInt64(UInt32(truncatingIfNeeded: o.cameraSeed)), frm = UInt64(UInt32(truncatingIfNeeded: o.frameSeed))
@@ -634,6 +638,29 @@ enum FilmLayout {
                     }
                 }
             }
+        }
+        // The letters mode's remap (mirrored from the engine): the canvas is the picture
+        // itself, so a mark in a band zone (t under 3 mm, or past filmW − 3 mm) moves onto
+        // the picture's own inner edge, 0.5 mm in. A frame-placed date is inside already.
+        if letters {
+            let W = L.filmW, gap = 0.5
+            func inside(_ t: Double) -> Double {
+                if t < 3.0 { return L.gateT0 + gap + t }
+                if t > W - 3.0 { return L.gateT0 + L.gateAcross - gap - (W - t) }
+                return t
+            }
+            func move(_ m: FilmMark) -> FilmMark {
+                switch m {
+                case .text(var tx): tx.t = inside(tx.t); return .text(tx)
+                case .poly(var pts):
+                    var i = 1
+                    while i < pts.count { pts[i] = inside(pts[i]); i += 2 }
+                    return .poly(pts)
+                case let .circle(s, t, r): return .circle(s: s, t: inside(t), r: r)
+                }
+            }
+            top = top.map(move)
+            bot = bot.map(move)
         }
         L.edge = top + bot
         L.printedName = name

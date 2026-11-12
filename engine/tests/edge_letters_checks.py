@@ -120,21 +120,29 @@ def main() -> int:
         bare = render(photo, **common, **{"overscan_edge_text": "", "overscan_frame_number": 0,
                                           "overscan_edge_name": False, "overscan_edge_number": False,
                                           "overscan_edge_marks": False})
-        bc = corners(bare)
-        check(float(np.abs(bc - 1.0).max()) < 0.02,
-              f"the band is the colour asked for: bare corners at white (max off {np.abs(bc - 1.0).max():.4f})")
+        # v2 (the owner's clarification, 2026-11-12): no band exists at all — the canvas is the
+        # photo's own, and with the print switched off the render IS the picture.
+        off = render(photo, **{"overscan_active": False})
+        lh, lw, _ = bare.shape
+        oh, ow, _ = off.shape
+        check(abs(lh - oh) <= 2 and abs(lw - ow) <= 2,
+              f"letters keeps the photo's own canvas: {lh} x {lw} against the frame's {oh} x {ow}")
+        ch, cw = min(lh, oh), min(lw, ow)
+        untouched = float(np.abs(bare[:ch, :cw] - off[:ch, :cw]).max())
+        check(untouched < 0.02,
+              f"with the print off, the picture is untouched (max delta {untouched:.4f})")
 
         def sides(out):
             """The bands on all four canvas edges: which edge the print lands on is the
             layout's business (a vertical strip puts it down the sides, a roll format
             across the top and bottom), so an element's pixel is looked for in any."""
-            hh, ww, _ = out.shape
-            # From 8 px in (about a millimetre at either format's scale): the print's
-            # baselines sit 1-2 mm from the film's edge on 120 and 1.5-2 mm on 135.
-            return np.concatenate([out[hh // 6:5 * hh // 6, 8:112].reshape(-1, 3),
-                                   out[hh // 6:5 * hh // 6, ww - 112:ww - 8].reshape(-1, 3),
-                                   out[8:112, ww // 6:5 * ww // 6].reshape(-1, 3),
-                                   out[hh - 112:hh - 8, ww // 6:5 * ww // 6].reshape(-1, 3)])
+            # From 8 px in (about a millimetre at either format's scale) — and the WHOLE
+            # edge, not the middle of it: a print's marks sit where the film puts them,
+            # corners included (120's numbers landed at the ends of this crop).
+            return np.concatenate([out[8:112, :].reshape(-1, 3),
+                                   out[-112:-8, :].reshape(-1, 3),
+                                   out[:, 8:112].reshape(-1, 3),
+                                   out[:, -112:-8].reshape(-1, 3)])
 
         full = render(photo, **common, **{"overscan_edge_text": "SPEKTRA 400",
                                           "overscan_edge_name": True, "overscan_edge_number": True,
@@ -174,6 +182,8 @@ def main() -> int:
         all_off = render(photo120, **common120, **{"overscan_edge_text": "SPEKTRA 400",
                                                "overscan_frame_number": 12, "overscan_edge_name": False,
                                                "overscan_edge_number": False, "overscan_edge_marks": False})
+        check(abs(f_on.shape[0] / f_on.shape[1] - 41.5 / 56.0) < 0.02,
+              f"the 120 letters canvas keeps the gate's own shape ({f_on.shape[1]} x {f_on.shape[0]})")
         d120 = float(np.abs(sides(f_on) - sides(all_off)).max())
         check(d120 > 0.1, f"the 120 print answers the switches (with/off delta {d120:.3f})")
         num_off_120 = render(photo120, **common120, **{"overscan_frame_number": 12, "overscan_edge_text": "",
@@ -186,16 +196,21 @@ def main() -> int:
         check(d120n > 0.1, f"the 120 frame number answers its switch (delta {d120n:.3f})")
         check(float(sc.mean()) < 0.15,
               f"strip mode still has its black rebate (corners mean {sc.mean():.4f})")
-        h, w, _ = strip.shape
-        gs, gl = strip[h // 2 - 40:h // 2 + 40, w // 2 - 40:w // 2 + 40], letters[h // 2 - 40:h // 2 + 40, w // 2 - 40:w // 2 + 40]
+        # The picture itself, against the render with no overscan at all: strip carries a
+        # scan's rotation and a film's margins and cannot match it pixel for pixel, but the
+        # letters mode has no film, no registration and no band — it IS the picture.
+        oh, ow, _ = off.shape
+        hh, ww, _ = letters.shape
+        gs = off[oh // 2 - 40:oh // 2 + 40, ow // 2 - 40:ow // 2 + 40]
+        gl = letters[hh // 2 - 40:hh // 2 + 40, ww // 2 - 40:ww // 2 + 40]
         check(float(np.abs(gs - gl).max()) < 0.02,
-              f"the gate holds the same picture (max delta {np.abs(gs - gl).max():.4f})")
+              f"the letters mode holds the picture itself (max delta {np.abs(gs - gl).max():.4f})")
         # The film is vertical here: the band runs down the canvas' left and right sides.
-        side = letters[h // 6:5 * h // 6, 8:96]
+        side = letters[hh // 6:5 * hh // 6, 8:96]
         ink = float(side.reshape(-1, 3).max(axis=1).min())
         check(ink < 0.35,
-              f"the ink is on the band: the side band's darkest pixel reads {ink:.3f} (the custom near-black)")
-        moved = float(np.abs(side - bare[h // 6:5 * h // 6, 8:96]).max())
+              f"the ink is at the photo's edge: the strip's darkest pixel reads {ink:.3f} (the custom near-black)")
+        moved = float(np.abs(side - bare[hh // 6:5 * hh // 6, 8:96]).max())
         check(moved > 0.1,
               f"the lettering is on the band: with the words taken away the band moves by {moved:.3f}")
 

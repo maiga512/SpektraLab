@@ -171,6 +171,17 @@ kernel void spk_overscan_canvas(device const float* frame [[buffer(0)]],
             const float3 pic = sample_frame(frame, fx, fy, uint(P[P_FW]), uint(P[P_FH]));
             if (letters) e = mix(e, pic, cov);   // the band is not a black rebate to expose onto
             else e += cov * pic;
+        } else if (letters) {
+            // The canvas rounds to a whole pixel and the gate is millimetres: a sub-pixel of it
+            // lands outside, and there the picture runs to the edge — never a band (the owner
+            // wants no border at all, 2026-11-12).
+            const float px = P[P_PX];
+            const float cx = clamp(st.x, P[P_GS0] + 0.5f * px, P[P_GS0] + P[P_GW] - 0.5f * px);
+            const float cy = clamp(st.y, P[P_GT0] + 0.5f * px, P[P_GT0] + P[P_GH] - 0.5f * px);
+            float fx, fy;
+            if (P[P_VERTICAL] < 0.5f) { fx = (cx - P[P_GS0]) / px - 0.5f; fy = (cy - P[P_GT0]) / px - 0.5f; }
+            else                      { fx = (P[P_GT0] + P[P_GH] - cy) / px - 0.5f; fy = (cx - P[P_GS0]) / px - 0.5f; }
+            e = sample_frame(frame, fx, fy, uint(P[P_FW]), uint(P[P_FH]));
         }
         // Gate flare: the gate's bevelled edge reflects scene light onto the
         // film just outside the frame -- a thin line that follows the scene's

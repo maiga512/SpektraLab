@@ -646,11 +646,19 @@ bool Pipeline::overscan_layout(uint32_t frame_w, uint32_t frame_h, std::string& 
 
     // --- canvas ------------------------------------------------------------
     double margin_along, t_lo, t_hi;
-    // The letters mode (无边框, owner 2026-11-12) keeps strip's geometry — the print sits
-    // where it sits on the film, scan registration and all — and draws no film: honoured
-    // on the finish path alone, where no print follows the overscan to pass a colour through.
-    const bool letters = o.mode == "letters" && params_.io.finish_only;
+    // The letters mode (无边框), as the owner clarified it, 2026-11-12: **the canvas IS the
+    // picture** — no film, no band, no room around it — and the print is remapped onto the
+    // picture's own inner edge (imprint_groups' `remap`). `letters` narrows that to the finish
+    // path, where the band colour and the mix kernel belong; on the film path the print is an
+    // exposure on the negative, as film's own print is, so both switches show their letters.
+    const bool letters_mode = o.mode == "letters";
+    const bool letters = letters_mode && params_.io.finish_only;
     if (o.mode == "strip" || o.mode == "letters") {
+        if (letters_mode) {
+            margin_along = 0.0;
+            t_lo = L.gate_t0;
+            t_hi = L.gate_t0 + L.gate_across;
+        } else {
         // 135 full frame advances 8 perforations (38 mm) for a 36 mm gate: ~1 mm
         // a side shows. Half frame advances 4 (19 mm) for 18 mm: ~0.5 mm a side.
         margin_along = fmt->perforated ? (fmt->along < 20.0 ? rc.uni(0.40, 0.50) : rc.uni(0.75, 0.95))
@@ -665,6 +673,7 @@ bool Pipeline::overscan_layout(uint32_t frame_w, uint32_t frame_h, std::string& 
         // every frame's canvas is the same size.
         const double reach = L.carrier_none ? 0.0 : kCarrierMM;
         t_lo = -reach; t_hi = L.film_w + reach;
+        }
     } else {
         margin_along = 0.9 + rf.uni(-0.1, 0.1);
         t_lo = L.gate_t0 - 1.1; t_hi = L.gate_t0 + L.gate_across + 1.1;
@@ -686,8 +695,8 @@ bool Pipeline::overscan_layout(uint32_t frame_w, uint32_t frame_h, std::string& 
     // does not sit like a wedge.
     const double half_along = 0.5 * along_px * L.px;
     const double tilt_lim = std::min(0.35, std::asin(std::min(1.0, 0.27 / half_along)) * 180.0 / M_PI);
-    L.scan_rot = std::clamp(rf.normal() * 0.14, -tilt_lim, tilt_lim) * M_PI / 180.0;
-    const double ds = rf.normal() * 0.08, dt = rf.normal() * 0.06;
+    L.scan_rot = letters_mode ? 0.0 : std::clamp(rf.normal() * 0.14, -tilt_lim, tilt_lim) * M_PI / 180.0;
+    const double ds = letters_mode ? 0.0 : rf.normal() * 0.08, dt = letters_mode ? 0.0 : rf.normal() * 0.06;
     const double cu = 0.5 * L.canvas_w * L.px, cv = 0.5 * L.canvas_h * L.px;
     const double c = std::cos(L.scan_rot), sn = std::sin(L.scan_rot);
     // canvas (u, v) -> film (s, t): the scan rotation R, then for a vertical film
@@ -771,9 +780,9 @@ bool Pipeline::overscan_layout(uint32_t frame_w, uint32_t frame_h, std::string& 
 
     // The letters mode's ink (无边框, owner 2026-11-12): `custom` is the host's own display
     // colour, converted like the band; the five presets keep the exposures tuned above (the
-    // mix clamps them). Either way the print is *mixed* onto the band — there is no film
-    // response for it to print through.
-    if (letters) {
+    // finish clamps them into the mix; the film path prints them as exposures, and every
+    // colour a film's print makes goes through the film).
+    if (letters_mode) {
         const std::string dst = params_.io.finish_only ? params_.io.input_color_space
                                                        : params_.io.output_color_space;
         if (o.edge_color == "custom") {
@@ -883,13 +892,16 @@ bool Pipeline::overscan_layout(uint32_t frame_w, uint32_t frame_h, std::string& 
         }
     }
 
-    // The letters mode: the film's own light goes with the film — fog, the spool's leaks and
-    // the gate's flare are emulsion effects, and the band is a flat colour instead.
+    // The letters mode: the film's own light goes with the film — fog, the spool's leaks, the
+    // gate's flare and its penumbra are a film's edges, and there is no film and no band now:
+    // the picture runs to the canvas. The band colour stays a finish path's concern.
+    L.letters_mode = letters_mode;
     L.letters = letters;
-    if (letters) {
+    if (letters_mode) {
         L.fog_amp = 0.0;
         L.leaks.clear();
         L.flare_amp = 0.0;
+        L.penumbra = 0.0;
         // The data's own primaries: the finish path still runs in the input's (nothing between
         // the decode and here converts), the film path in the print's output's.
         const std::string dst = params_.io.finish_only ? params_.io.input_color_space
@@ -941,7 +953,7 @@ void Pipeline::overscan_params_block(std::vector<float>& P) const {
     }
     P[P_ROUGH_AMP] = float(L.rough_amp); P[P_ROUGH_PERIOD] = float(L.rough_period); P[P_ROUGH_SEED] = float(L.rough_seed);
     P[P_HOLES_LIGHT] = L.holes_light ? 1.0f : 0.0f;
-    P[P_LETTERS] = L.letters ? 1.0f : 0.0f;
+    P[P_LETTERS] = L.letters_mode ? 1.0f : 0.0f;
     for (int c = 0; c < 3; ++c) P[P_BAND_R + c] = float(L.band[c]);
     P[P_CARRIER] = L.carrier_none ? 2.0f : (L.carrier_open ? 1.0f : 0.0f);   // 2: no carrier, the film runs on
     P[P_PAIR_ADV] = float(L.pair_adv);
@@ -1519,13 +1531,32 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
 
     auto group_for = [&](const double rgb[3], double e, double blur_mm) {
         Group g;
-        // The letters mode (无边框): the print carries the host's ink and is mixed onto the band
-        // (`spk_overscan_mix_mask`), not exposed through a film's response — there is no film.
-        if (L.letters) for (int c = 0; c < 3; ++c) g.exposure[c] = L.ink[c];
+        // The letters mode (无边框): the host's custom ink is exact on the finish path (mixed
+        // onto the band), and an exposure on the film path — where every colour the print makes
+        // goes through the film, presets included. Otherwise the film response, as always.
+        if (L.letters_mode && o.edge_color == "custom") for (int c = 0; c < 3; ++c) g.exposure[c] = L.ink[c];
         else for (int c = 0; c < 3; ++c) g.exposure[c] = rgb[c] * e;
         g.blur_mm = blur_mm;
         return g;
     };
+    // The letters mode's remap (无边框, the owner's clarification, 2026-11-12): the print was
+    // laid out on the film's bands, and the canvas is now the picture itself — so a row in a
+    // band zone (t under 3 mm, or past W − 3 mm) is moved onto the picture's own inner edge,
+    // 0.5 mm in from each side. Anything already inside (a frame-placed date) is left alone.
+    const double remapW = L.film_w, remapGap = 0.5;
+    auto inside = [&](double t) -> double {
+        if (t < 3.0) return L.gate_t0 + remapGap + t;
+        if (t > remapW - 3.0) return L.gate_t0 + L.gate_across - remapGap - (remapW - t);
+        return t;
+    };
+    auto remap = [&](std::vector<Op>& ops) {
+        if (!L.letters_mode) return;
+        for (Op& op : ops) {
+            if (op.pts.empty()) { op.t = inside(op.t); continue; }
+            for (size_t i = 1; i < op.pts.size(); i += 2) op.pts[i] = inside(op.pts[i]);
+        }
+    };
+
     auto rect = [](double s0, double t0, double s1, double t1) {
         Op op;
         op.kind = Op::Poly;
@@ -1861,6 +1892,8 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
                 }
             }
         }
+        remap(top.ops);
+        remap(bot.ops);
         out.push_back(top);
         out.push_back(bot);
     } else if (L.valid) {
@@ -2109,6 +2142,8 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
                 }
             }
         }
+        remap(top.ops);
+        remap(bot.ops);
         out.push_back(top);
         out.push_back(bot);
     }

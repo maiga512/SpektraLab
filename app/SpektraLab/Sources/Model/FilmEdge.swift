@@ -332,12 +332,15 @@ struct FilmEdgeSettings: Codable, Equatable, Sendable {
         let alongPx = vertical ? h : w
         let marginMM: Double, acrossMM: Double
         switch mode {
-        case .strip, .letters:
-            // The letters mode keeps strip's geometry (无边框, owner 2026-11-12): the print sits
-            // where it sits on the film — only no film is drawn in it.
+        case .strip:
             marginMM = format == .half ? 0.5 : (format.isPerforated ? 0.95 : 2.35)
             // The film's width (120's is cut to ±0.15) and nothing past it.
             acrossMM = format.filmWidthMM + (format.isPerforated ? 0 : 0.15)
+        case .letters:
+            // The picture itself (无边框 v2, the owner's clarification 2026-11-12): no band,
+            // no margin — the canvas is the frame, and the print stands inside its edge.
+            marginMM = 0
+            acrossMM = (vertical ? w : h) * px
         case .filed:
             marginMM = 1.0
             acrossMM = (vertical ? w : h) * px + 2.2

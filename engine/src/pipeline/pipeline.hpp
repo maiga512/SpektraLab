@@ -261,7 +261,8 @@ uint32_t cctf_mode_for(const std::string& colour_space);
 struct OverscanLayout {
     // The letters mode (无边框): the band is drawn flat in this colour, working-linear
     // (the wire's display sRGB, converted at layout), and only the edge print shows.
-    bool letters = false;
+    bool letters_mode = false;   // the mode: gate-only canvas, the print remapped inside
+    bool letters = false;        // the finish path's: band colour and the mix kernel
     double band[3] = {0, 0, 0};
     double ink[3] = {0, 0, 0};
     bool valid = false;

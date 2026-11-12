@@ -529,11 +529,15 @@ func sizeChecks(_ c: inout Checker, _ r: Rules) {
                 let down = g.vertical != (g.extraTurns % 2 == 1)   // the film runs down the canvas as shown
                 let acrossMM = down ? s.width : s.height, alongMM = down ? s.height : s.width
                 let name = "\(format.rawValue) \(view.rawValue)\(turned ? " turned" : "")"
-                if view == .strip || view == .letters {
+                if view == .strip {
                     c.near(acrossMM, format.filmWidthMM, format.isPerforated ? 0.02 : 0.17, "\(name): the film's width across")
                     let margin = format.isPerforated ? (format.alongMM < 20 ? (0.40, 0.50) : (0.75, 0.95)) : (1.05, 2.35)
                     c.expect(alongMM >= format.alongMM + 2 * margin.0 - 0.02 && alongMM <= format.alongMM + 2 * margin.1 + 0.02,
                              "\(name): the frame and a sliver of the next along (\(alongMM) mm)")
+                } else if view == .letters {
+                    // The picture itself (无边框 v2): no band, no carrier — the gate alone.
+                    c.near(acrossMM, format.acrossMM, 0.05, "\(name): the picture alone across")
+                    c.near(alongMM, format.alongMM, 0.05, "\(name): and along (\(alongMM) mm)")
                 } else {
                     c.near(acrossMM, format.acrossMM + 2.2, 0.02, "\(name): the gate and 1.1 mm of carrier across")
                     c.expect(alongMM >= format.alongMM + 1.6 - 0.02 && alongMM <= format.alongMM + 2.0 + 0.02, "\(name): and along (\(alongMM) mm)")
