@@ -1535,8 +1535,22 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
         // letters-only, and on a strip it fell back to the film's own — the owner's strip with
         // a custom colour showed the stock's instead). On the film path it is an exposure
         // through the negative, as every colour there is.
-        if (o.edge_color == "custom") for (int c = 0; c < 3; ++c) g.exposure[c] = L.ink[c];
-        else for (int c = 0; c < 3; ++c) g.exposure[c] = rgb[c] * e;
+        if (o.edge_color == "custom") {
+            for (int c = 0; c < 3; ++c) g.exposure[c] = L.ink[c];
+        } else {
+            for (int c = 0; c < 3; ++c) g.exposure[c] = rgb[c] * e;
+            // The letters mix and overlay take an ink in the DISPLAY domain, and an exposure is
+            // proportional to its colour but sits at exposure scale — the named inks are held to
+            // punch a black rebate (the 4×/6.5×/9× pair) and blow past 1 on every channel,
+            // which clamped to white over a photograph (the owner's preset yellow, 2026-11-12:
+            // (0.995, 0.995, 0.931) — "JPG 还是寡淡，没有颜色"). Scaling by the largest channel
+            // recovers the hue (the scale is proportional); a colour already inside 0..1 — a
+            // dark custom ink — is left exactly as asked.
+            if (L.letters_mode) {
+                const double m = std::max({g.exposure[0], g.exposure[1], g.exposure[2]});
+                if (m > 1.0) for (int c = 0; c < 3; ++c) g.exposure[c] /= m;
+            }
+        }
         // The finish path's letters carry no film's develop spread (无边框: `L.letters`): a
         // stroke is drawn solid, so its colour is the colour asked for rather than a wash of
         // the picture beneath. The film path keeps the spread — there it is the film's.
