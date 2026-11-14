@@ -279,6 +279,76 @@ def main() -> int:
                   and abs(far_off - near_on) < max(30.0, 0.3 * max(far_off, 1.0)),
                   f"the flip swaps the bands (near {int(near_off)}->{int(near_on)}, far {int(far_off)}->{int(far_on)})")
 
+        # The property the owner reads off his own strip (2026-11-14), in STRIP mode — the one
+        # with the black bands: after a flip NO letter may sit on the picture (inside the gate),
+        # and the two bands' ink must trade places. Swept over seeds and gate families, because
+        # his frame is neither of mine.
+        for cam in (1, 5, 9):
+            for fam in ("square", "rounded", "eared", "kicked", "shouldered"):
+                kw = {"overscan_mode": "strip", "overscan_gate": fam,
+                      "overscan_camera_seed": cam, "overscan_frame_seed": 3,
+                      "overscan_edge_text": "SPEKTRA 400", "overscan_frame_number": 12,
+                      "overscan_edge_name": True, "overscan_edge_number": True,
+                      "overscan_edge_marks": True}
+                noprint = {"overscan_edge_text": "", "overscan_edge_name": False,
+                           "overscan_edge_number": False, "overscan_edge_marks": False}
+                try:
+                    # The print's own delta, measured against the SAME state without the print:
+                    # the gate mirror moves the picture, and only this pair cancels it.
+                    base = render(photo, **{**kw, "overscan_edge_flip": False})
+                    base_off = render(photo, **{**kw, "overscan_edge_flip": False, **noprint})
+                    flip = render(photo, **{**kw, "overscan_edge_flip": True})
+                    off_render = render(photo, **{**kw, "overscan_edge_flip": True, **noprint})
+                    with Engine() as e:
+                        with e.open(photo, {**BASE, **kw, "overscan_edge_flip": True}) as ses:
+                            ses.render("live")          # the layout is built by a render
+                            geo = ses.overscan_geometry()
+                except Exception as ex:
+                    check(False, f"flip sweep {fam} seed {cam}: {ex}")
+                    continue
+                if not geo.get("valid"):
+                    check(False, f"flip sweep {fam} seed {cam}: no geometry")
+                    continue
+                # `gates` holds the gate's four corners, NORMALIZED to the canvas: pairs of (x, y).
+                pts = geo["gates"][0]
+                xs = [pts[0], pts[2], pts[4], pts[6]]
+                ys = [pts[1], pts[3], pts[5], pts[7]]
+                vertical = geo["vertical"]
+                dim = geo["canvas_w"] if vertical else geo["canvas_h"]
+                if vertical:
+                    gate_lo, gate_hi = min(xs) * dim, max(xs) * dim
+                else:
+                    gate_lo, gate_hi = min(ys) * dim, max(ys) * dim
+                hh, ww, _ = flip.shape
+                d = np.abs(flip - off_render).max(2)      # the print alone (picture cancelled)
+                yy, xx = np.nonzero(d > 0.05)
+                if len(yy) == 0:
+                    check(False, f"flip sweep {fam} seed {cam}: the print vanished")
+                    continue
+                coord = xx if vertical else yy
+                limit = ww if vertical else hh
+                offcanvas = int(((coord < 0) | (coord >= limit)).sum())
+                # On the picture = the letters sit on the PHOTOGRAPH: the substrate under
+                # them (the same state, print off) is bright. The gate's box alone cannot
+                # say it — a shouldered recess is cut out of the box and is black, and the
+                # print belongs there (31032 of 31887 print pixels measured on near-black).
+                substrate = off_render[yy, xx].mean()
+                bright = int((off_render[yy, xx].mean(1) > 0.15).sum())
+                check(bright <= max(800, 0.15 * len(yy)),
+                      f"flip sweep {fam} seed {cam}: {bright} letters on the photograph "
+                      f"(substrate mean {float(substrate):.3f})")
+                check(offcanvas == 0,
+                      f"flip sweep {fam} seed {cam}: {offcanvas} letters off the canvas")
+                def mass(img, dd):
+                    if vertical:
+                        return (float((dd[:, 8:96] > 0.05).sum()), float((dd[:, ww - 96:ww - 8] > 0.05).sum()))
+                    return (float((dd[8:96, :] > 0.05).sum()), float((dd[hh - 96:hh - 8, :] > 0.05).sum()))
+                nb, fb = mass(base, np.abs(base - base_off).max(2))
+                na, fa = mass(flip, np.abs(flip - off_render).max(2))
+                swap = abs(na - fb) < max(60.0, 0.4 * max(na, fb, 1)) and abs(fa - nb) < max(60.0, 0.4 * max(fa, nb, 1))
+                check(swap, f"flip sweep {fam} seed {cam}: bands trade places "
+                            f"(near {int(nb)}->{int(na)}, far {int(fb)}->{int(fa)})")
+
     print(f"edge letters checks: {passed} passed, {failed} failed")
     return 1 if failed else 0
 

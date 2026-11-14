@@ -273,6 +273,10 @@ struct OverscanLayout {
     uint32_t canvas_w = 0, canvas_h = 0;
     bool vertical = false;                // the film runs along the image's y axis
     double gate_s0 = 0, gate_t0 = 0, gate_along = 0, gate_across = 0;
+    /// The seat before a flip mirrors it: the print is laid out against the ORIGINAL seat in
+    /// `imprint_groups`, and `finalize` does the one mirror (the owner's strip, 2026-11-14:
+    /// the recess print was mirrored twice and landed on the picture).
+    double print_t0 = 0;
     double pair_adv = 0;                  // > 0: a half-frame pair, the same gate again this far along
     double corner = 0, penumbra = 0;
     double wob_a[4][3] = {{0}}, wob_ph[4][3] = {{0}};

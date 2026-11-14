@@ -627,6 +627,11 @@ bool Pipeline::overscan_layout(uint32_t frame_w, uint32_t frame_h, std::string& 
         }
         gate_shape(L, family, fmt->perforated, rg);
     }
+    // The seat the print is laid out against: the ORIGINAL one. The mirror below moves the gate;
+    // the print's positions stay on the original side and `finalize` mirrors them once — a
+    // position computed against the mirrored seat AND mirrored again landed the recess print on
+    // the picture (the owner's strip, 2026-11-14: shouldered's letters off the black).
+    L.print_t0 = L.gate_t0;
     // 反转 (the owner, 2026-11-14: "黑边也应该跟着反转…不然会出现一边那个黑边包不下字"): the
     // whole film layout mirrors across the film — the gate seats from the other edge and its
     // ears' quads go with it, so the wide band follows the print and no side's black is left
@@ -1993,9 +1998,7 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
             // With a number set, it goes on this frame's mark: the first one
             // along the picture (s >= 0), the rest counting from it.
             if (o.frame_number > 0) n0 = o.frame_number - int(std::ceil(roll / P));
-            const double tb = L.top_recess > 0 ? std::max(0.9, L.gate_t0 + L.top_recess - 0.85)
-                                      : L.top_recess < 0 ? std::min(L.film_w - 0.9, L.gate_t0 + L.gate_across + L.top_recess + 0.85)
-                                      : 1.60;
+            const double tb = L.top_recess > 0 ? std::max(0.9, L.print_t0 + L.top_recess - 0.85) : 1.60;
             const int j_lo = int(std::floor((s_min + roll) / P)) - 1, j_hi = int(std::ceil((s_max + roll) / P)) + 1;
             for (int j = j_lo; j <= j_hi; ++j) {
                 const double sn = -roll + j * P;
@@ -2062,9 +2065,7 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
             const double P = 39.5, roll = rf.uni(0.0, P);
             int n0 = 1 + int(rf.uni(0.0, 14.0));
             if (o.frame_number > 0) n0 = o.frame_number - int(std::ceil(roll / P));
-            const double tb = L.top_recess > 0 ? std::max(1.2, L.gate_t0 + L.top_recess - 0.85)
-                                      : L.top_recess < 0 ? std::min(L.film_w - 1.2, L.gate_t0 + L.gate_across + L.top_recess + 0.85)
-                                      : 1.66;
+            const double tb = L.top_recess > 0 ? std::max(1.2, L.print_t0 + L.top_recess - 0.85) : 1.66;
             const int j_lo = int(std::floor((s_min + roll) / P)) - 1, j_hi = int(std::ceil((s_max + roll) / P)) + 1;
             for (int j = j_lo; j <= j_hi; ++j) {
                 const int n = n0 + j;
@@ -2128,9 +2129,7 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
             // The stock name's baseline sits ~0.85 mm above the gate's edge where
             // it runs: the recess, on a shouldered gate (measured: 1.84 mm from the
             // film's edge on the 6x8 reference), so the ears reach into its band.
-            const double t_top = L.top_recess > 0 ? std::max(0.9, L.gate_t0 + L.top_recess - 0.85)
-                                        : L.top_recess < 0 ? std::min(L.film_w - 0.9, L.gate_t0 + L.gate_across + L.top_recess + 0.85)
-                                        : 1.60;
+            const double t_top = L.top_recess > 0 ? std::max(0.9, L.print_t0 + L.top_recess - 0.85) : 1.60;
             const double t_bot = L.film_w - 0.54;
             const int j_lo = int(std::floor((s_min + roll) / period)) - 1, j_hi = int(std::ceil((s_max + roll) / period)) + 1;
             for (int j = j_lo; j <= j_hi; ++j) {
