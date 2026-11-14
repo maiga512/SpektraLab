@@ -359,6 +359,14 @@ NATIVE_ONLY = {
         "path": "camera.finish_white_balance_tint", "type": "float", "layer": "shoot",
         "default": 0.0, "live": False, "range": [-150.0, 150.0],
     },
+    # Concentration (the owner, 2026-11-11): the film's picture composited over the frame's own
+    # finish rendering, 0…1. Native, like the rows above it — and in `kFields` in the same place
+    # (the two tables are compared in order, and this dict's order is what `preview_long_edge`
+    # is inserted at).
+    "film_strength": {
+        "path": "film_render.strength", "type": "float", "layer": "print",
+        "default": 1.0, "live": True, "range": [0.0, 1.0],
+    },
 }
 
 

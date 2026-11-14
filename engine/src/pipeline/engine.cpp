@@ -1302,6 +1302,10 @@ spk_status render_tier(spk_session* session, const char* tier_name, bool use_rep
         ok = session->pipeline->set_overscan_frame(state.overscan_frame_w, state.overscan_frame_h, error);
     }
     if (ok && !finish_only) ok = run_print_for(session, negative, rgb, &session->progress, error);
+    // **Concentration** (`film_render.strength`): the film's picture over this frame's own
+    // film-off picture. After the print, so a reprint is enough to move it — which is what makes
+    // it a PRINT-layer field — and only below 1.0, where it is nothing at all by default.
+    if (ok && !finish_only) ok = session->pipeline->blend_film_strength(tier_source, rgb, error);
     if (ok) ok = materialise(session, rgb, out, error);
     gpu->end_frame();
 

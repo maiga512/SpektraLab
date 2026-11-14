@@ -472,6 +472,7 @@ struct FilmParams: Codable, Equatable, Sendable {
         case digitalIntermediate = "digitalIntermediate"
         case sceneLatitudeOther = "sceneLatitudeOther", placementIsRight = "placementIsRight", pairSplit = "pairSplit",
             sceneCurve = "sceneCurve"
+        case filmStrengthRaw = "filmStrength"
     }
 
     // --- stock (shoot for film, print for paper) ---
@@ -640,6 +641,23 @@ struct FilmParams: Codable, Equatable, Sendable {
     }
     /// RFC-025. Shoot layer except glare, which is the print's.
     var effects = EffectStrengths()
+    /// **Concentration** (the owner, 2026-11-11: "一个浓度从0到100%的滑条 … 就像PS的那个透明度"):
+    /// how much of the film's picture is kept — the film's rendering composited over this frame's
+    /// own film-off rendering, as a layer's opacity. 100 is everything (and the render is then
+    /// byte for byte what it was without the field), 0 is the frame with no film, no grain, and
+    /// its strip and date still there. PRINT layer: the negative never changes (`film_render.strength`,
+    /// `Pipeline::blend_film_strength`).
+    /// Stored **optional, with no key's default**: `FilmParams` is synthesised Codable, and a
+    /// non-optional `Double` would make every sidecar written before this existed fail to decode
+    /// (`keyNotFound`). Absent means 100 — all of the film, which is the render this build made
+    /// before the field existed — and an untouched edit writes exactly the bytes it wrote before.
+    private var filmStrengthRaw: Double? = nil
+    /// What the page reads and writes, 0…100 (`filmStrength`'s key; the wire sends 0…1 —
+    /// `film_render.strength`).
+    var filmStrength: Double {
+        get { filmStrengthRaw ?? 100.0 }
+        set { filmStrengthRaw = newValue }
+    }
     /// The Print section's **Print Effects** switch: off leaves the paper's
     /// colour transformation and nothing else -- no glare, no pre-flash, no
     /// Tone Mask -- without forgetting any of their settings. A gate on the
@@ -789,6 +807,7 @@ struct FilmParams: Codable, Equatable, Sendable {
             ("halation_amount", .double(effects.halation.clamped(to: EffectStrengths.halationRange)), .shoot),
             ("halation_scatter_amount", .double(effects.scatter.clamped(to: EffectStrengths.scatterRange)), .shoot),
             ("grain_amount", .double(effects.grain.clamped(to: EffectStrengths.grainRange)), .shoot),
+            ("film_strength", .double(filmStrength.clamped(to: 0.0...100.0) / 100.0), .print),
             ("dir_couplers_active", .bool(effects.couplersActive), .shoot),
             ("dir_couplers_amount", .double(effects.couplers.clamped(to: EffectStrengths.couplersRange)), .shoot),
             ("glare_amount", .double(effects.glare.clamped(to: EffectStrengths.glareRange)), .print),

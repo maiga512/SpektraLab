@@ -8515,28 +8515,6 @@
         }
       }
     },
-    "Film emulation comes to JPEG later" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "フィルムの写しは後で JPEG に対応します"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "胶片模拟稍后支持 JPG"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "膠片模擬稍後支援 JPG"
-          }
-        }
-      }
-    },
     "Film emulation off" : {
       "localizations" : {
         "ja" : {

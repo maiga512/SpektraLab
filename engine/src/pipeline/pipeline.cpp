@@ -463,6 +463,7 @@ bool Pipeline::build(const Params& params, std::string& error) {
     node_count_ += params_.io.input_cctf_decoding ? 1 : 0;               // decode_input
     node_count_ += params_.io.geometry.is_identity() ? 0 : 1;            // geometry
     node_count_ += params_.camera.auto_exposure ? 1 : 0;                 // auto_exposure
+    node_count_ += (params_.film_render.overscan.mode == "letters" && !params_.io.finish_only) ? 1 : 0;  // letters_overlay
     node_count_ += 1;                                                    // crop_rescale
     node_count_ += scene_latitude_wanted() ? 1 : 0;                      // RFC-023
     node_count_ += scene_curve_wanted() ? 1 : 0;                         // the Decode curve
@@ -2496,19 +2497,6 @@ bool Pipeline::run_finish(const Image& in, Image& out, Progress* progress, std::
         SPK_NODE(node_exposure(cur, next, error)); cur = next;
     }
 
-    // **Grain runs before the strip, not over it** (the owner, 2026-11-10: raising grain past 1
-    // turned the film edge's border green, then khaki). Grain works in the density domain, and the
-    // rebate's black is a display 0: `to_density` puts it at the film's `density_max`, where grain's
-    // negative half walks back along an exponential — measured on a 135 strip, the border's black
-    // half alone: 1.0 `#000100`, 1.2 `#021000`, 1.5 `#247B07`, 2.0 `#AFB378`, with the picture
-    // untouched the whole way (mean 0.248 → 0.224). The film chain survives the same grain because
-    // there the rebate is still the negative's clear base — low density — not the print's black.
-    // So the picture is grained first and the strip is drawn on top of it: the border never enters
-    // that round trip at all, and with grain off the order changes nothing (the pair is identity).
-    SPK_NODE(node_finish_to_density(cur, next, error)); cur = next;
-    if (params_.film_render.grain.active) { SPK_NODE(node_grain(cur, next, error)); cur = next; }
-    SPK_NODE(node_finish_from_density(cur, next, error)); cur = next;
-
     // The strip and the date: `node_overscan` draws either, and is the identity
     // with neither. Called here for the same reason the film chain calls it.
     SPK_NODE(node_overscan(cur, next, error)); cur = next;
@@ -2531,10 +2519,64 @@ bool Pipeline::run_finish(const Image& in, Image& out, Progress* progress, std::
         cur = next;
     }
     factory_exposure_ = Image{};
+    // **Grain over the whole frame, strip included — deliberately, for now.** Raising grain past 1
+    // lifts the rebate's black (measured on a 135 strip, the border's black half alone: 1.0
+    // `#000100`, 1.2 `#021000`, 1.5 `#247B07`, 2.0 `#AFB378`; the picture is untouched: mean
+    // 0.248 → 0.224). The obvious fix — draw the strip *after* the density round trip so the border
+    // never enters it — was tried on 2026-11-11 and **corrupted the picture** (black with magenta
+    // shapes on every JPEG, while the edge, drawn from geometry, stayed correct); it was reverted the
+    // same night, mechanism unpinned. A node order that breaks the picture is not a fix. The lift is
+    // not explained by the order either — `pow(10, -(-log10 v))` is an exact inverse — so the next
+    // attempt starts from `grain_realise`, which reads the *film's* density curves while this path
+    // hands it a value normalised by `density_max`: a scale mismatch that would mis-size grain here
+    // and only here. Do not reorder these nodes again without that understood.
+    SPK_NODE(node_finish_to_density(cur, next, error)); cur = next;
+    if (params_.film_render.grain.active) { SPK_NODE(node_grain(cur, next, error)); cur = next; }
+    SPK_NODE(node_finish_from_density(cur, next, error)); cur = next;
     SPK_NODE(node_cctf(cur, next, error)); cur = next;
 
     out = cur;
     progress_ = nullptr;
+    return true;
+}
+
+// **Concentration** (the owner, 2026-11-11: "一个浓度从0到100%的滑条 … 就像PS的那个透明度").
+// The film's picture over this frame's own film-off picture, exactly as a layer's opacity
+// composites it: `out = film·k + finish·(1−k)`.
+//
+// The reference is a real `run_finish` of the **same source** with `io.finish_only` set while it
+// runs, so it takes the app's own film-off route — same `set_overscan_frame` state the print just
+// used (same gate, same strip, same canvas), same decode, same scene operations — and only the
+// film's response and the print are absent from it. Its grain is off while it runs: the film's
+// grain rides with the strength, and two grain fields composited would only blur each other.
+//
+// Nothing runs at `k >= 1`, so the default render is byte for byte what it was; that is the
+// property `tests/film_strength_checks.py` holds it to against a render taken before this existed.
+bool Pipeline::blend_film_strength(const Image& source, Image& rgb, std::string& error) {
+    const double k = params_.film_render.strength;
+    if (!(k < 1.0)) return true;   // 1.0 (the default) and anything above or NaN: today's render
+    if (k < 0.0) return error = "film_strength is below 0", false;
+
+    const bool finish = params_.io.finish_only;
+    const bool grain = params_.film_render.grain.active;
+    params_.io.finish_only = true;
+    params_.film_render.grain.active = false;
+    Image reference;
+    // progress stays null: `run_finish` would otherwise zero the film run's node counters mid-render.
+    const bool ok = run_finish(source, reference, nullptr, error);
+    params_.io.finish_only = finish;
+    params_.film_render.grain.active = grain;
+    if (!ok) return false;
+    if (reference.h != rgb.h || reference.w != rgb.w || reference.c != rgb.c) {
+        error = "the film's strength reference is a different picture: the film rendered "
+                + std::to_string(rgb.w) + "x" + std::to_string(rgb.h) + ", its film-off rendering "
+                + std::to_string(reference.w) + "x" + std::to_string(reference.h);
+        return false;
+    }
+    const double a[3] = {k, k, k}, b[3] = {1.0 - k, 1.0 - k, 1.0 - k};
+    Image mixed;
+    if (!blur_.lincomb(rgb, reference, a, b, mixed, error)) return false;
+    rgb = std::move(mixed);
     return true;
 }
 

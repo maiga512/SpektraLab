@@ -182,10 +182,14 @@ extension FrameEdit {
                     band: String? = nil) -> [String: ParamValue] {
         // **A file that is not RAW never gets the film's colour** (the owner, 2026-11-11): the film
         // mapping is only calibrated for RAW, and a JPEG through it came out purple and mottled. So
-        // the switch is inert for anything that is not RAW — the finish path runs instead, where the
-        // strip, the grain and the date still draw and the picture keeps its own colour. Callers that
-        // know the file say so; `nil` (a schema check, a pair) takes the edit's own switch as it is.
-        let filmApplies = appliesFilm && (isRAW ?? true)
+        // The switch applies to any file (the owner, 2026-11-14: "JPG的那个胶片染色，可以把功能
+        // 打开吧？打开之后我再调浓度"). It was inert for anything not RAW after a JPEG came out
+        // purple and mottled (2026-11-11), but the engine's film path takes a JPEG as it takes any
+        // picture — the wire's input is the decoder's linear pixels either way, and
+        // `tests/edge_letters_checks` renders this very JPEG through Portra/Supra. So the force is
+        // gone: `filmApplies` is the switch. The parameter stays for callers that know the file and
+        // for the schema check's `nil`.
+        let filmApplies = appliesFilm
         // Through the catalogue: a slide film is scanned, whatever the edit
         // holds (`StockCatalog.wire(for:)`, and the rule above it).
         var wire = StockCatalog.shared.wire(for: params)

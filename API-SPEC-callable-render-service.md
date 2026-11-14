@@ -1190,19 +1190,40 @@ pipeline and drops the cached negative.
 | `finish_only` | `io.finish_only` | bool | `false` | — | the frame is the finished picture: no film is exposed and no paper is printed, and the film edge, the date and the stock's grain are drawn on the picture as it is |
 | `scene_wb_temperature` | `camera.finish_white_balance_temperature` | float | `6500` | 1500–15000 | the Decode white balance's target temperature, on the finish path only |
 | `scene_wb_tint` | `camera.finish_white_balance_tint` | float | `0` | −150…150 | its green↔magenta, positive toward magenta |
+| `film_strength` | `film_render.strength` | float | `1.0` | 0–1 | **concentration**: the film's picture composited over this frame's own film-off rendering — the finish path's, same cut, same strip, same canvas — as `out = film·k + finish·(1−k)`, a layer's opacity over the film. `1.0` (default) renders exactly as before, byte for byte: the reference is not made below it, and `k ≥ 1` takes no branch at all. Below it a second, short render supplies the reference, with **the film's grain off in it** — the film's grain rides with the strength, and two grain fields composited would only blur — so `0` is the frame with no film and no grain, but its strip and its date intact. Native (`parity_schema.NATIVE_ONLY`); PRINT layer, because the negative is never touched: a change reprints rather than re-films |
 
 **The source is Apple's stock decode** (`DigitalDecode.finishSource`, 2026-11-11): the
 frame off the file through `CIRAWFilter` as Apple sets it — its boost, its tone map, its
 gamut mapping — because the engine's neutral decode zeroes those "for the film" and the
 film off has no film to supply the look. It is decoded whole at the job's long edge and cut
-after (the order `FrameDecoder.decode` takes), handed over in ROMM's own curve, and
-`input_cctf_decoding` is sent **true** so the engine takes the curve off at the door — its
-maths then run on linear pixels exactly as on the film path. The white balance is the
-decode's too, so `scene_wb_temperature`/`scene_wb_tint` are sent **6500/0** always: the
-engine's own gain is never applied twice. When the film comes back both fields leave the
-wire, and `FilmParams.finishRest` tells the session their rest (`finish_only` false,
-`input_cctf_decoding` false, the white balance neutral) — a delta built only from the keys
-present would never turn them off.
+after (the order `FrameDecoder.decode` takes).
+
+**The input's contract is a pair, and neither half may be moved alone** (settled 2026-11-11,
+after a day of chasing it): `finishSource` hands the engine **float32 RGBA, ROMM-encoded**
+(`.RGBAf`, 16 bytes a pixel, packed — `spk_take_rgb` reads `device const float*` at `img[4*i + c]`,
+and `spk_device_image` carries no format and no stride to say otherwise) and the wire says
+**`input_cctf_decoding: true`**, so the engine removes ROMM's curve at the door, works in its own
+space, and hands back ProPhoto — which is the space `OutputTransformer.workingSpace` converts
+**from** for the canvas (ProPhoto → Display P3).
+
+Measured through the engine, on the owner's own photograph:
+
+| the pair | identity error (mean \|Δ\|, back to display values) |
+|---|---|
+| **ROMM + `input_cctf_decoding` + ProPhoto output (this row)** | **0.00001** (max 0.0001 — 16-bit precision) |
+| split: linear pixels, no flag (what shipped for a few hours) | **0.0275**, max **0.559** |
+
+The split keeps the brightness and changes the **colour**: on the owner's own JPEG the develop
+came out at R/G **1.91 → 2.41** and saturation **0.575 → 0.642** with luma unchanged — a white
+door rendered pink. Two other faults in the same function, for the record, because each one
+looked like the last: the bytes were first `.RGBA16` (2026-11-10 23:25) and then `.RGBAh`
+(11-11), neither of which is float32 — black with magenta, then black with a green cast.
+
+The white balance is the decode's too, so `scene_wb_temperature`/`scene_wb_tint` are sent
+**6500/0** always: the engine's own gain is never applied twice. When the film comes back
+those fields leave the wire, and `FilmParams.finishRest` tells the session their rest
+(`finish_only` false, `input_cctf_decoding` false, the white balance neutral) — a delta built
+only from the keys present would never turn them off.
 
 **The white balance's direction is the RAW decoder's.** The two fields are a
 chromatic gain on the picture: the Planckian colour of `ref` (a fixed 6500 K

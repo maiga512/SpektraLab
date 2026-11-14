@@ -375,6 +375,12 @@ public:
     /// read onto that stock's density axis (`-log10` of the working space over
     /// its `dmax`), which is the density a print of it would have.
     bool run_finish(const Image& in, Image& out, Progress* progress, std::string& error);
+    /// **Concentration** (`film_render.strength`): the film's picture composited over this very
+    /// frame's finish rendering — the app's film-off picture of the same source, made here with
+    /// `io.finish_only` forced while it runs and its grain off, so the strip, the gate and the
+    /// canvas are the same one and only the film's look is missing. `rgb` in, `rgb` out; a no-op
+    /// at the default 1.0, where nothing extra is made at all.
+    bool blend_film_strength(const Image& source, Image& rgb, std::string& error);
 
     // The reference's per-input meter: what `preprocess.auto_exposure` does
     // when no session EV was set (a standalone pipeline, `warm_up`), on a

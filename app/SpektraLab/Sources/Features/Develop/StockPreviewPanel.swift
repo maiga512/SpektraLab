@@ -50,15 +50,22 @@ struct StockPreviewPanel: View {
     /// showing its shortest part (Exposure): a taller part scrolls, rather than the strips losing a
     /// row under the pointer each time a chip is chosen.
     /// A folded strip (`foldable`) is its pill's line alone.
+    /// The concentration row's own height under the switch (`filmStrengthSlider`): in the layout
+    /// whether or not it is live, so the panel's height is one number.
+    static let strengthRow: CGFloat = 52
+
     static func height(rows: Int, compact: Bool, filmFolded: Bool = false, paperFolded: Bool = false) -> CGFloat {
         let spacing: CGFloat = compact ? 6 : 10, pill: CGFloat = 44, toggle: CGFloat = 44
         let row = StockPreviewRow.height(compact: compact, rows: rows) + spacing
-        return 8 + 2 * pill + (filmFolded ? 0 : row) + (paperFolded ? 0 : row) + DecodeSection.height(.exposure)
+        return 8 + 2 * pill + (filmFolded ? 0 : row) + (paperFolded ? 0 : row) + DecodeSection.height(.exposure) + Self.strengthRow
             + toggle + 3 * spacing
     }
 
-    /// Apply Film Emulation (`FrameEdit.appliesFilm`): off, the paper is greyed and the frame keeps
-    /// its own colour. **The film stays live**: with the colour off it is the grain's source
+    /// Apply Film Emulation (`FrameEdit.appliesFilm`): off, the frame keeps its own colour, and
+    /// the film and paper stay **selectable** (the owner, 2026-11-14: "就算在默认关闭的情况下…
+    /// 我也可以切换，切换之后片边也会根据前面选的胶片来变换") — the edge print names the film
+    /// chosen, and the choice is there for the switch's next on. **The film stays live**:
+    /// with the colour off it is the grain's source
     /// (`FrameEdit.usesFinishPath`), and the edge and the date are still drawn. A frame with no
     /// grain, no edge and no date is Apple's own decode, as it always was. A half-frame pair is a
     /// piece of film: it has no switch.
@@ -79,6 +86,11 @@ struct StockPreviewPanel: View {
                     .rowEnabled(true)
             }
             if session.pair == nil { filmSwitch }
+            // **Concentration** (the owner, 2026-11-11): one slider under the switch it belongs to.
+            // Always in the layout (so the panel's height is one number) and live only where a film
+            // is — off it the film's picture is not in the render at all and the slider has nothing
+            // to mix. (A JPEG takes the film path as any file does since 2026-11-14.)
+            if session.pair == nil { filmStrengthSlider }
             if let status { StatusFoot(status: status) }
         }
         .padding(.top, 8)
@@ -97,6 +109,22 @@ struct StockPreviewPanel: View {
         // references/jobs; on return no preference change is guaranteed.
         .onAppear { show() }
         .onDisappear { StripClients.release(strip, by: client) }
+    }
+
+    /// **Concentration, 0–100%** (the owner, 2026-11-11): how much of the film's picture is kept —
+    /// its rendering composited over this frame's own film-off rendering, as a layer's opacity over
+    /// the film (`film_render.strength`, `Pipeline::blend_film_strength`). 100 is every bit of the
+    /// film, and the render is then byte for byte what it was without the control; 0 is the picture
+    /// with no film and no grain, its strip and its date still drawn. PRINT layer in the engine, so
+    /// moving it costs a reprint, not a re-film.
+    private var filmStrengthSlider: some View {
+        EditSlider(title: L("Concentration"), value: session.binding(\.params.filmStrength),
+                   range: 0...100, rest: 100, text: { "\(Int($0.rounded()))%" },
+                   detentAtRest: true, editing: session.editing(.print))
+            .padding(.horizontal, 16)
+            .frame(height: 52)
+            .rowEnabled(session.edit.appliesFilm)
+            .accessibilityIdentifier("v5.develop.film-strength")
     }
 
     /// The owner, 2026-10-21: "a on / off switch under film exposure called 'apply film emulation'".
@@ -118,16 +146,16 @@ struct StockPreviewPanel: View {
                 HStack(spacing: 8) {
                     filmPill.rowEnabled(true)
                     Spacer(minLength: 0)
-                    if let crop { cropButton(crop).rowEnabled(appliesFilm || !foldable) }
+                    if let crop { cropButton(crop).rowEnabled(true) }
                     if foldable { foldButton(L("Film"), folded: filmFolded) { prefs.filmRowCollapsed.toggle() } }
                 }.padding(.horizontal, 16)
                 if !filmFolded { filmRow.rowEnabled(true) }
                 HStack {
-                    paperPill.rowEnabled(appliesFilm || !foldable)
+                    paperPill.rowEnabled(true)
                     Spacer(minLength: 0)
                     if foldable { foldButton(L("Paper"), folded: paperFolded) { prefs.paperRowCollapsed.toggle() } }
                 }.padding(.horizontal, 16)
-                if !paperFolded { paperRow.rowEnabled(appliesFilm || !foldable) }
+                if !paperFolded { paperRow.rowEnabled(true) }
             } else {
                 // Both pills whole, and Crop in words where they fit beside it; where they do not
                 // (Japanese at an reference device's width: フィルム · すべて, 印画紙 · すべて), Crop is its glyph

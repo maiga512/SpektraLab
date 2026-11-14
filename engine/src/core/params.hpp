@@ -248,6 +248,14 @@ struct DateImprintParams {
 
 struct FilmRenderParams {
     double density_curve_gamma = 1.0;
+    /// **Concentration** (the owner, 2026-11-11): how much of the film's picture is kept, 0…1
+    /// (default 1 = all of it, and then the render is byte for byte what it was). The film's
+    /// picture is composited over the same frame's *finish* rendering — the app's own film-off
+    /// picture: same cut, same strip, same canvas, no film and no grain — the way a layer's
+    /// opacity composites it. Below 1.0 the reference costs a second, short render (`Pipeline::
+    /// blend_film_strength`); at 1.0 nothing is made. The material model is untouched: this
+    /// composites two finished pictures, it does not bend a measured response.
+    double strength = 1.0;
     GrainParams grain;
     HalationParams halation;
     DirCouplersParams dir_couplers;

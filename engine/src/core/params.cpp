@@ -233,6 +233,9 @@ const SchemaField kFields[] = {
     // `finish_only`. 6500 K and 0 tint are the identity.
     {"scene_wb_temperature",     "camera.finish_white_balance_temperature", F, SHOOT, true, 1500.0, 15000.0, false},
     {"scene_wb_tint",            "camera.finish_white_balance_tint",        F, SHOOT, true, -150.0, 150.0, false},
+    // Concentration (the owner, 2026-11-11): PRINT, because it composites over the finished
+    // picture — the negative is never touched, so a change reprints rather than re-films.
+    {"film_strength",            "film_render.strength",                   F, PRINT, true, 0.0, 1.0, false},
     // The app's *preview resolution*: the `live` tier's long edge, and so the
     // size every interactive edit renders at. PRINT layer, because it is a
     // decision about the canvas rather than about the film -- but it is one of
@@ -303,6 +306,7 @@ double* float_slot(Params& p, const std::string& path) {
     if (path == "film_render.date_imprint.inset_x") return &p.film_render.date_imprint.inset_x;
     if (path == "film_render.date_imprint.inset_y") return &p.film_render.date_imprint.inset_y;
     if (path == "print_render.glare.amount") return &p.print_render.glare.amount;
+    if (path == "film_render.strength") return &p.film_render.strength;
     return nullptr;
 }
 
