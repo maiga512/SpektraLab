@@ -96,7 +96,12 @@ enum FilmLayout {
             L.gateT0 = L.filmW - L.gateT0 - L.gateAcross
             for i in L.quads.indices {
                 var q = L.quads[i]
-                for k in stride(from: 1, to: q.pts.count, by: 2) { q.pts[k] = L.filmW - q.pts[k] }
+                if q.sign == -2 {
+                    // An ellipse: cs, ct, rs, rt — only the centre's cross-film coordinate moves.
+                    if q.pts.count > 1 { q.pts[1] = L.filmW - q.pts[1] }
+                } else {
+                    for k in stride(from: 1, to: q.pts.count, by: 2) { q.pts[k] = L.filmW - q.pts[k] }
+                }
                 L.quads[i] = q
             }
         }

@@ -431,7 +431,11 @@ struct StockPreviewRow: View {
             cardView(card, selected: card.stock == selected, live: live(card))
         }
         .buttonStyle(.plain).id(card.stock)
-            .disabled(!live(card))
+            // Grey, but selectable (the owner, 2026-11-14: "就算它是灰色的，我也能选择") —
+            // `active` (Apply Film Emulation off) keeps the card still and unasked-for, the
+            // 2026-10-21 design; it no longer eats the tap. The choice writes the film either
+            // way, and the edge print follows it with the switch off.
+            .disabled(!strip.isLive(card) || !serves(card))
             .onGeometryChange(for: StripPlacement.self) { geo in
                 let rect = geo.frame(in: .scrollView(axis: .horizontal))
                 return .of(minX: rect.minX, maxX: rect.maxX, width: width)
