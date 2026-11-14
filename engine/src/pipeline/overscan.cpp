@@ -627,6 +627,16 @@ bool Pipeline::overscan_layout(uint32_t frame_w, uint32_t frame_h, std::string& 
         }
         gate_shape(L, family, fmt->perforated, rg);
     }
+    // 反转 (the owner, 2026-11-14: "黑边也应该跟着反转…不然会出现一边那个黑边包不下字"): the
+    // whole film layout mirrors across the film — the gate seats from the other edge and its
+    // ears' quads go with it, so the wide band follows the print and no side's black is left
+    // too narrow to hold its letters. Mirrored after `gate_shape`: its seat and shapes are built
+    // for the seat as it was.
+    if (o.edge_flip) {
+        L.gate_t0 = L.film_w - L.gate_t0 - L.gate_across;
+        for (OverscanLayout::Quad& q : L.quads)
+            for (int k = 1; k < 8; k += 2) q.pts[k] = L.film_w - q.pts[k];
+    }
     L.holes_light = o.holes == "white";
     L.carrier_open = o.carrier == "open";
     L.carrier_none = o.carrier == "none";

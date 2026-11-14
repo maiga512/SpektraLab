@@ -88,6 +88,18 @@ enum FilmLayout {
             family = fams[Int(rg.uni(0.0, Double(fams.count))) % fams.count]
         }
         gateShape(&L, family, &rg)
+        // 反转 (the owner, 2026-11-14): the whole film layout mirrors — the gate seats from the
+        // other edge, so the wide band follows the print and no side's black is left too narrow
+        // to hold its letters. Mirrored after `gateShape`, as the engine mirrors after
+        // `gate_shape`: the seat and the ears are built for the seat as it was.
+        if r.edgeFlip {
+            L.gateT0 = L.filmW - L.gateT0 - L.gateAcross
+            for i in L.quads.indices {
+                var q = L.quads[i]
+                for k in stride(from: 1, to: q.pts.count, by: 2) { q.pts[k] = L.filmW - q.pts[k] }
+                L.quads[i] = q
+            }
+        }
 
         // --- perforations: the frame's place on the grid is the camera's
         if L.perforated {
