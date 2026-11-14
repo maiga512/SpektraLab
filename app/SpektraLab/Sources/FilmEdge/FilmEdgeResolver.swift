@@ -229,7 +229,8 @@ enum FilmEdgeResolver {
         var request = FilmEdgeRequest(format: edge.format, mode: edge.mode, gate: edge.gate, holes: edge.holes,
                                       cameraSeed: edge.cameraSeed > 0 ? edge.cameraSeed : bodySeed,
                                       frameSeed: edit.frameSeed, frameNumber: edge.frameNumber, turn: edge.turn,
-                                      frame: cut, stockID: edit.params.filmStock, edgeText: stock?.edgeText(gauge: edge.format.gauge) ?? "",
+                                      frame: cut, stockID: edit.params.filmStock, edgeFlip: edge.edgeFlip ?? false,
+                                      edgeText: stock?.edgeText(gauge: edge.format.gauge) ?? "",
                                       fNumber: ShootingLine.fNumber(frame.exposure),
                                       date: dateRequest(edit.dateBack, edge: active, frame: frame))
         guard var geometry = source.geometry(request) else { return nil }

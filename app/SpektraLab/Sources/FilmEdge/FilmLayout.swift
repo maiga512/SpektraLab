@@ -151,7 +151,7 @@ enum FilmLayout {
         L.extraTurns = (((r.turn - base) % 4) + 4) % 4
         L.out = L.extraTurns % 2 == 0 ? L.canvas : PixelSize(width: L.canvas.height, height: L.canvas.width)
 
-        imprints(&L, letters: r.mode == .letters)
+        imprints(&L, letters: r.mode == .letters, flip: r.edgeFlip)
         return L
     }
 
@@ -302,7 +302,7 @@ enum FilmLayout {
     /// (`kIlfordCode`).
     private static let ilfordCode = 2.85
 
-    private static func imprints(_ L: inout FilmGeometry, letters: Bool) {
+    private static func imprints(_ L: inout FilmGeometry, letters: Bool, flip: Bool) {
         let o = L.request
         let look = EdgeLook.of(o.stockID)
         let cam = UInt64(UInt32(truncatingIfNeeded: o.cameraSeed)), frm = UInt64(UInt32(truncatingIfNeeded: o.frameSeed))
@@ -642,6 +642,24 @@ enum FilmLayout {
         // The letters mode's remap (mirrored from the engine): the canvas is the picture
         // itself, so a mark in a band zone (t under 3 mm, or past filmW − 3 mm) moves onto
         // the picture's own inner edge, 0.5 mm in. A frame-placed date is inside already.
+        // 反转 (the owner, 2026-11-14): the print mirrored across the film — only t moves, so a
+        // glyph starts where it started and reads the way it read.
+        if flip {
+            let W = L.filmW
+            func mirrored(_ t: Double) -> Double { W - t }
+            func flipMark(_ m: FilmMark) -> FilmMark {
+                switch m {
+                case .text(var tx): tx.t = mirrored(tx.t); return .text(tx)
+                case .poly(var pts):
+                    var i = 1
+                    while i < pts.count { pts[i] = mirrored(pts[i]); i += 2 }
+                    return .poly(pts)
+                case let .circle(s, t, r): return .circle(s: s, t: mirrored(t), r: r)
+                }
+            }
+            top = top.map(flipMark)
+            bot = bot.map(flipMark)
+        }
         if letters {
             let W = L.filmW, gap = 0.5
             func inside(_ t: Double) -> Double {

@@ -9010,13 +9010,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "翻转"
+            "value" : "反转"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "翻轉"
+            "value" : "反轉"
           }
         }
       }

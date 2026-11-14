@@ -247,6 +247,38 @@ def main() -> int:
             check(float(yellow) > 0.6,
                   f"the film path's ink is the colour asked for (yellow fraction {float(yellow):.3f})")
 
+        # 反转 (flip, the owner, 2026-11-14): the print mirrored across the film — what sits in
+        # the near band sits in the far one, glyphs and all. Red first on the field not existing.
+        flip_words = {"overscan_edge_text": "SPEKTRA 400", "overscan_edge_name": True,
+                      "overscan_edge_number": True, "overscan_edge_marks": True}
+        try:
+            fl_on = render(photo, **common, **flip_words, **{"overscan_edge_flip": True})
+            flip_ok, flip_why = True, ""
+        except Exception as e:
+            fl_on, flip_ok, flip_why = None, False, str(e)
+        check(flip_ok, f"the flip wire is accepted{'' if flip_ok else ': ' + flip_why}")
+        if flip_ok:
+            fl_off = render(photo, **common, **flip_words)
+            check(float(np.abs(fl_on - fl_off).max()) > 0.1,
+                  f"the flip moves the print (max delta {np.abs(fl_on - fl_off).max():.3f})")
+            def bands(out):
+                """Ink against the print-off picture, near and far across the film."""
+                base = out  # placeholder; measured against `bare` below
+                hh, ww, _ = out.shape
+                return hh, ww
+            hh, ww, _ = fl_off.shape
+            d_off = np.abs(fl_off - bare).max(2)
+            d_on = np.abs(fl_on - bare).max(2)
+            near_off = float((d_off[:, 8:96] > 0.05).sum())
+            far_off = float((d_off[:, ww - 96:ww - 8] > 0.05).sum())
+            near_on = float((d_on[:, 8:96] > 0.05).sum())
+            far_on = float((d_on[:, ww - 96:ww - 8] > 0.05).sum())
+            check(near_off > 50 and far_off > 50 and near_on > 50 and far_on > 50,
+                  f"ink on both bands either way (off {int(near_off)}/{int(far_off)}, on {int(near_on)}/{int(far_on)})")
+            check(abs(near_off - far_on) < max(30.0, 0.3 * max(near_off, 1.0))
+                  and abs(far_off - near_on) < max(30.0, 0.3 * max(far_off, 1.0)),
+                  f"the flip swaps the bands (near {int(near_off)}->{int(near_on)}, far {int(far_off)}->{int(far_on)})")
+
     print(f"edge letters checks: {passed} passed, {failed} failed")
     return 1 if failed else 0
 

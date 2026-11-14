@@ -226,7 +226,8 @@ struct FilmEdgeSettings: Codable, Equatable, Sendable {
         case active = "active", format = "format", mode = "mode", gate = "gate", holes = "holes", fog = "fog",
             leaks = "leaks", turn = "turn", cameraSeed = "cameraSeed", frameNumber = "frameNumber", framing = "framing",
             edgeBrightness = "edgeBrightness", edgeColor = "edgeColor",
-            edgeInk = "edgeInk", edgeName = "edgeName", edgeNumber = "edgeNumber", edgeMarks = "edgeMarks"
+            edgeInk = "edgeInk", edgeName = "edgeName", edgeNumber = "edgeNumber", edgeMarks = "edgeMarks",
+            edgeFlip = "edgeFlip"
     }
     var active = false
     var format = FilmEdgeFormat.f135
@@ -267,6 +268,10 @@ struct FilmEdgeSettings: Codable, Equatable, Sendable {
     var edgeName: Bool? = nil
     var edgeNumber: Bool? = nil
     var edgeMarks: Bool? = nil
+    /// `overscan_edge_flip` (反转, the owner 2026-11-14): the print mirrored across the film —
+    /// the near band and the far one trade places, top to bottom. Optional as the rest, so an
+    /// edit written before it round-trips; nil is off.
+    var edgeFlip: Bool? = nil
 
     static let fogRange = 0.0...4.0
     static let leaksRange = 0.0...4.0
@@ -394,6 +399,7 @@ struct FilmEdgeSettings: Codable, Equatable, Sendable {
             // The letters mode's own (无边框, owner 2026-11-12): the band as display sRGB
             // ("r,g,b"; the caller passes the page's ground, an export its white), the custom
             // ink, and the three element switches. The switches hold in any mode.
+            ("overscan_edge_flip", .bool(edgeFlip ?? false), .shoot),
             ("overscan_edge_name", .bool(edgeName ?? true), .shoot),
             ("overscan_edge_number", .bool(edgeNumber ?? true), .shoot),
             ("overscan_edge_marks", .bool(edgeMarks ?? true), .shoot),

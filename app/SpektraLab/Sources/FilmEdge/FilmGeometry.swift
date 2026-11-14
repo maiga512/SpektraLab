@@ -100,6 +100,8 @@ struct FilmEdgeRequest: Equatable, Sendable {
     /// to the gate's shape.
     var frame = PixelSize(width: 3600, height: 2400)
     var stockID = ""
+    /// `overscan_edge_flip`: the print mirrored across the film (反转).
+    var edgeFlip = false
     /// `overscan_edge_text`: the host's words.
     var edgeText = ""
     var fNumber = 0.0

@@ -897,6 +897,7 @@ bool Pipeline::overscan_layout(uint32_t frame_w, uint32_t frame_h, std::string& 
     // the picture runs to the canvas. The band colour stays a finish path's concern.
     L.letters_mode = letters_mode;
     L.letters = letters;
+    L.flip = o.edge_flip;
     if (letters_mode) {
         L.fog_amp = 0.0;
         L.leaks.clear();
@@ -1567,7 +1568,16 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
         if (t > remapW - 3.0) return L.gate_t0 + L.gate_across - remapGap - (remapW - t);
         return t;
     };
-    auto remap = [&](std::vector<Op>& ops) {
+    auto finalize = [&](std::vector<Op>& ops) {
+        // 反转 (the owner, 2026-11-14): the print mirrored across the film — the band that sat
+        // in the near edge sits in the far one, top to bottom, right to left as the film lies.
+        // Only t moves: a glyph starts where it started and reads the way it read.
+        if (L.flip) {
+            for (Op& op : ops) {
+                if (op.pts.empty()) { op.t = remapW - op.t; continue; }
+                for (size_t i = 1; i < op.pts.size(); i += 2) op.pts[i] = remapW - op.pts[i];
+            }
+        }
         if (!L.letters_mode) return;
         for (Op& op : ops) {
             if (op.pts.empty()) { op.t = inside(op.t); continue; }
@@ -1910,8 +1920,8 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
                 }
             }
         }
-        remap(top.ops);
-        remap(bot.ops);
+        finalize(top.ops);
+        finalize(bot.ops);
         out.push_back(top);
         out.push_back(bot);
     } else if (L.valid) {
@@ -2160,8 +2170,8 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
                 }
             }
         }
-        remap(top.ops);
-        remap(bot.ops);
+        finalize(top.ops);
+        finalize(bot.ops);
         out.push_back(top);
         out.push_back(bot);
     }

@@ -198,6 +198,7 @@ struct OverscanParams {
     bool edge_name = true;              // the stock's name row (letters mode, owner 2026-11-12)
     bool edge_number = true;            // the frame's number row ("12A")
     bool edge_marks = true;             // the arrows and advance marks
+    bool edge_flip = false;             // 反转: the print mirrored across the film (top↔bottom)
     double f_number = 0.0;           // EXIF; sets the gate penumbra. 0 = unknown (f/5.6 assumed)
     // RFC-032 §29: the gate's shape family (auto = the camera seed picks one
     // that the format's real cameras have), and what the scan sees through

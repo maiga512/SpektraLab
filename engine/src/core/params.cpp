@@ -165,6 +165,7 @@ const SchemaField kFields[] = {
     {"overscan_edge_name",       "film_render.overscan.edge_name",        B, SHOOT, false, 0, 0, false},
     {"overscan_edge_number",     "film_render.overscan.edge_number",      B, SHOOT, false, 0, 0, false},
     {"overscan_edge_marks",      "film_render.overscan.edge_marks",       B, SHOOT, false, 0, 0, false},
+    {"overscan_edge_flip",       "film_render.overscan.edge_flip",        B, SHOOT, false, 0, 0, false},
     {"overscan_f_number",        "film_render.overscan.f_number",         F, SHOOT, true, 0.0, 64.0, false},
     {"overscan_gate",            "film_render.overscan.gate",             S, SHOOT, false, 0, 0, false},
     {"overscan_holes",           "film_render.overscan.holes",            S, SHOOT, false, 0, 0, false},
@@ -339,6 +340,7 @@ bool* bool_slot(Params& p, const std::string& path) {
     if (path == "film_render.overscan.edge_name") return &p.film_render.overscan.edge_name;
     if (path == "film_render.overscan.edge_number") return &p.film_render.overscan.edge_number;
     if (path == "film_render.overscan.edge_marks") return &p.film_render.overscan.edge_marks;
+    if (path == "film_render.overscan.edge_flip") return &p.film_render.overscan.edge_flip;
     if (path == "film_render.overscan.pair") return &p.film_render.overscan.pair;
     if (path == "film_render.date_imprint.active") return &p.film_render.date_imprint.active;
     return nullptr;

@@ -36,7 +36,7 @@ struct FilmStepPanel: View {
     private var extra: CGFloat { CGFloat(cardRows) * 92 + CGFloat(cardRows - 1) * Self.cardGap + 6 - 98 }
 
     var body: some View {
-        DrawnBand(height: 226 + extra) {
+        DrawnBand(height: 276 + extra) {
             DrawnText(L("Format", as: "of film"), 14, .semibold).leading(16).baseline(30)
             if FeatureFlags.halfFramePair, draft.filmEdge.format == .half, let enterPair {
                 PairFormatLink(enter: enterPair).trailingInset(16).centreY(25.5)
@@ -57,6 +57,18 @@ struct FilmStepPanel: View {
                 .leading(16).baseline(200 + extra)
             DrawnText(L("Filed shows a sliver of rebate: ×\(cost(.filed))."), 11.5, .medium, Theme.dim)
                 .leading(16).baseline(216 + extra)
+            // 反转 (the owner, 2026-11-14): the print mirrored across the film — the near band and
+            // the far one trade places, top to bottom and right to left as the film lies.
+            HStack {
+                Text(L("Flip")).font(Theme.Font.ui(13)).foregroundStyle(Theme.text)
+                Spacer(minLength: 8)
+                SpkToggle(isOn: Binding(get: { draft.filmEdge.edgeFlip ?? false },
+                                        set: { draft.filmEdge.edgeFlip = $0 }))
+                    .accessibilityLabel(L("Flip"))
+                    .accessibilityIdentifier("film-edge.flip")
+            }
+            .padding(.horizontal, 16)
+            .top(228 + extra)
         }
     }
 

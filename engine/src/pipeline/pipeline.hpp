@@ -263,6 +263,7 @@ struct OverscanLayout {
     // (the wire's display sRGB, converted at layout), and only the edge print shows.
     bool letters_mode = false;   // the mode: gate-only canvas, the print remapped inside
     bool letters = false;        // the finish path's: band colour and the mix kernel
+    bool flip = false;           // 反转: the print mirrored across the film
     double band[3] = {0, 0, 0};
     double ink[3] = {0, 0, 0};
     bool valid = false;
