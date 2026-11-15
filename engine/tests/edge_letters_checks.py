@@ -349,6 +349,38 @@ def main() -> int:
                 check(swap, f"flip sweep {fam} seed {cam}: bands trade places "
                             f"(near {int(nb)}->{int(na)}, far {int(fb)}->{int(fa)})")
 
+        # The owner's frames (2026-11-15): "黑色的边没有包围它，还有一丢丢" — on a seated
+        # gate (shouldered) the recess print's top steps past the recess onto the photograph.
+        # The print must be cut where the picture covers, exactly as a real exposure overwrites
+        # the factory's text inside the gate. (A wide crop cannot be the cause: the engine
+        # refuses a source that is not the gate's own shape, so gate_across is always36/24.)
+        for cam in (1, 7):
+            kw = {"overscan_mode": "strip", "overscan_gate": "shouldered",
+                  "overscan_camera_seed": cam, "overscan_frame_seed": 3,
+                  "overscan_edge_text": "SPEKTRA 400", "overscan_frame_number": 12,
+                  "overscan_edge_name": True, "overscan_edge_number": True,
+                  "overscan_edge_marks": True}
+            try:
+                flip = render(photo, **{**kw, "overscan_edge_flip": True})
+                flip_off = render(photo, **{**kw, "overscan_edge_flip": True,
+                                            "overscan_edge_text": "", "overscan_edge_name": False,
+                                            "overscan_edge_number": False, "overscan_edge_marks": False})
+            except Exception as ex:
+                check(False, f"recess overshoot seed {cam}: {ex}")
+                continue
+            yy, xx = np.nonzero(np.abs(flip - flip_off).max(2) > 0.05)
+            if not len(yy):
+                check(False, f"recess overshoot seed {cam}: the print vanished")
+                continue
+            substrate = flip_off[yy, xx].mean(1)
+            bright = int((substrate > 0.15).sum())
+            # The substrate under the print as a whole: the recess is black (0.005-0.013
+            # measured), the photograph is not. The bright count allows the recess's own
+            # boundary antialias, where substrate and picture meet.
+            check(float(substrate.mean()) < 0.12 and bright <= 800,
+                  f"recess overshoot seed {cam}: substrate mean {float(substrate.mean()):.3f}, "
+                  f"{bright} letters on the photograph")
+
     print(f"edge letters checks: {passed} passed, {failed} failed")
     return 1 if failed else 0
 

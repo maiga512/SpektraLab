@@ -262,6 +262,7 @@ struct Op {
 
 struct Group {
     bool factory = true;
+    bool date = false;        // the date back: its date sits on the picture and is never clipped
     std::vector<Op> ops;
     double exposure[3] = {0, 0, 0};   // raw exposure at full coverage, per layer
     double blur_mm = 0.0;
@@ -1024,8 +1025,68 @@ CFAttributedStringRef make_text(const Op& op, CTFontRef font, double gain) {
 }
 
 // Rasterise one group into a canvas-aligned coverage bitmap (its bounding box).
+// The gate's shape on the CPU — the one the picture is drawn with (overscan.metal's
+// `gate_sdf`), minus the wobble and the roughness: those move the boundary by at most
+// ~0.03 mm against a penumbra of the same order, and the print's clip reads the shape.
+static double sd_quad_cpu(const OverscanLayout::Quad& q, double ps, double pt) {
+    const double v[4][2] = {{q.pts[0], q.pts[1]}, {q.pts[2], q.pts[3]},
+                            {q.pts[4], q.pts[5]}, {q.pts[6], q.pts[7]}};
+    double d = (ps - v[0][0]) * (ps - v[0][0]) + (pt - v[0][1]) * (pt - v[0][1]);
+    double sgn = 1.0;
+    for (int i = 0, j = 3; i < 4; j = i, ++i) {
+        const double ex = v[j][0] - v[i][0], ey = v[j][1] - v[i][1];
+        const double wx = ps - v[i][0], wy = pt - v[i][1];
+        const double ee = ex * ex + ey * ey;
+        if (ee < 1e-12) continue;
+        const double b0 = (wx * ex + wy * ey) / ee;
+        const double c = b0 < 0.0 ? 0.0 : (b0 > 1.0 ? 1.0 : b0);
+        const double bx = wx - ex * c, by = wy - ey * c;
+        d = std::min(d, bx * bx + by * by);
+        const bool c0 = pt >= v[i][1], c1 = pt < v[j][1], c2 = ex * wy > ey * wx;
+        if ((c0 && c1 && c2) || (!c0 && !c1 && !c2)) sgn = -sgn;
+    }
+    return sgn * std::sqrt(d);
+}
+
+static double gate_sdf_cpu(const OverscanLayout& L, double s, double t) {
+    const double hw = 0.5 * L.gate_along, hh = 0.5 * L.gate_across;
+    const double ds = s - (L.gate_s0 + hw), dt = t - (L.gate_t0 + hh);
+    const double r = ds > 0.0 ? (dt > 0.0 ? L.gate_r[2] : L.gate_r[1])
+                              : (dt > 0.0 ? L.gate_r[3] : L.gate_r[0]);
+    const double qs = std::fabs(ds) - (hw - r), qt = std::fabs(dt) - (hh - r);
+    double d = std::hypot(std::max(qs, 0.0), std::max(qt, 0.0)) +
+               std::min(std::max(qs, qt), 0.0) - r;
+    for (const OverscanLayout::Quad& q : L.quads) {
+        double dq;
+        if (std::fabs(q.sign) > 1.5) {
+            // an ellipse: centre pts[0..1], radii pts[2..3], exact on the boundary.
+            const double rx = std::max(q.pts[2], 1e-4), ry = std::max(q.pts[3], 1e-4);
+            dq = (std::hypot((s - q.pts[0]) / rx, (t - q.pts[1]) / ry) - 1.0) * std::min(rx, ry);
+        } else {
+            dq = sd_quad_cpu(q, s, t) - q.round;
+        }
+        d = q.sign > 0.0 ? std::min(d, dq) : std::max(d, -dq);
+    }
+    return d;
+}
+
+// overscan.metal's `penumbra`: the lit fraction of the aperture's disc behind a straight edge.
+static double penumbra_cpu(double d, double r) {
+    if (r <= 1e-6) return d < 0.0 ? 1.0 : 0.0;
+    const double u = std::clamp(-d / r, -1.0, 1.0);
+    return 0.5 + (u * std::sqrt(std::max(1.0 - u * u, 0.0)) + std::asin(u)) / M_PI;
+}
+
+// The canvas kernel's `canvas_to_film`: where a printed pixel lands on the film.
+static void canvas_to_film_px(const OverscanLayout& L, double x, double y, double& s, double& t) {
+    const double u = (x + 0.5) * L.px - L.cu;
+    const double v = (y + 0.5) * L.px - L.cv;
+    s = L.A[0] * u + L.A[1] * v + L.cs;
+    t = L.A[2] * u + L.A[3] * v + L.ct;
+}
+
 bool rasterise(const OverscanLayout& L, const Group& g, std::vector<float>& cov, int& x0, int& y0,
-               int& w, int& h) {
+               int& w, int& h, bool clip_print) {
     // Bounding box in canvas px from each op's film-space extent (generous for text).
     double xmin = 1e30, ymin = 1e30, xmax = -1e30, ymax = -1e30;
     auto grow = [&](double s, double t) {
@@ -1136,6 +1197,21 @@ bool rasterise(const OverscanLayout& L, const Group& g, std::vector<float>& cov,
             vImageConvolve_PlanarF(&dst, &src, nullptr, 0, 0, k.data(), taps, 1, 0.0f, kvImageEdgeExtend)
                 != kvImageNoError)
             return false;
+    }
+    // The print never crosses onto the picture (the owner, 2026-11-15: "黑色的边没有包围它,
+    // 还有一丢丢"): a real exposure overwrites the factory's text inside the gate, and this is
+    // the gate's own shape — the same one the picture is drawn with, ears, recess and all.
+    // The letters mode draws on the picture by design, a date keeps its own group, and a pair's
+    // piece is composed whole (the caller's flag says so).
+    if (clip_print) {
+        for (int j = 0; j < h; ++j) {
+            for (int i = 0; i < w; ++i) {
+                double cs, ct;
+                canvas_to_film_px(L, double(x0 + i), double(y0 + j), cs, ct);
+                if (penumbra_cpu(gate_sdf_cpu(L, cs, ct), L.penumbra) > 0.0)
+                    cov[size_t(j) * size_t(w) + size_t(i)] = 0.0f;
+            }
+        }
     }
     return true;
 }
@@ -2246,6 +2322,7 @@ void imprint_groups(const OverscanLayout& L, const Params& params, double frame_
     if (!is135 && !is120) return;
     Group g;
     g.factory = false;
+    g.date = true;
     const double e = kMidGrey * std::pow(2.0, d.exposure_ev);
     for (int c = 0; c < 3; ++c) g.exposure[c] = L.date_rgb[c] * e;
     g.blur_mm = 0.015;
@@ -2552,7 +2629,8 @@ bool Pipeline::node_overscan(const Image& in, Image& out, std::string& error) {
         const Group& gg = groups[gi];
         std::vector<float> cov;
         int x0, y0, w, h;
-        if (!rasterise(gi < placed.size() ? placed[gi] : overscan_, gg, cov, x0, y0, w, h)) continue;
+        const bool clip_print = !overscan_.letters_mode && !gg.date && overscan_.pair_adv <= 0.0;
+        if (!rasterise(gi < placed.size() ? placed[gi] : overscan_, gg, cov, x0, y0, w, h, clip_print)) continue;
         gpu::BufferRef mb = gpu_->upload(cov.data(), cov.size() * sizeof(float), error);
         if (!mb) return false;
         const float M[9] = {float(x0), float(y0), float(w), float(h), float(canvas.w), float(canvas.h),
