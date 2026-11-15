@@ -1165,7 +1165,11 @@ bool rasterise(const OverscanLayout& L, const Group& g, std::vector<float>& cov,
         CGContextTranslateCTM(ctx, op.s, op.t);
         CGContextRotateCTM(ctx, op.rot_deg * M_PI / 180.0);
         if (op.scale_advances) CGContextScaleCTM(ctx, op.hscale, 1.0);
-        CGContextSetTextMatrix(ctx, CGAffineTransformMakeScale(op.scale_advances ? 1.0 : op.hscale, -1.0));   // t is down; glyphs are up
+        // t is down; glyphs are up — and under 反转 the print is a mirror image, so the
+        // ascent mirrors with it: mirroring only the baseline moved every line by a cap
+        // height (the owner, 2026-11-15: "反转到左边了，没有贴到左边…上下反转之后也不贴底").
+        CGContextSetTextMatrix(ctx, CGAffineTransformMakeScale(op.scale_advances ? 1.0 : op.hscale,
+                                                               L.flip ? 1.0 : -1.0));
         CGContextSetTextPosition(ctx, 0, 0);
         CTLineDraw(line, ctx);
         CGContextRestoreGState(ctx);

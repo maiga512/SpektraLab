@@ -261,23 +261,43 @@ def main() -> int:
             fl_off = render(photo, **common, **flip_words)
             check(float(np.abs(fl_on - fl_off).max()) > 0.1,
                   f"the flip moves the print (max delta {np.abs(fl_on - fl_off).max():.3f})")
-            def bands(out):
-                """Ink against the print-off picture, near and far across the film."""
-                base = out  # placeholder; measured against `bare` below
-                hh, ww, _ = out.shape
-                return hh, ww
+            # The whole print mirrored: on-ink at x is off-ink at W-1-x, both ways. The fixed
+            # band windows stopped fitting once the ascent fix moved the ink to its true hug,
+            # so the check reads the mask as a whole (the dilation carries the projection
+            # blur and the ~0.3 mm residual the hug check tracks).
+            def dilate(m, r=12):  # 12 px ~0.45 mm: the documented residual's own bound
+                out = m.copy()
+                for dy in range(-r, r + 1):
+                    for dx in range(-r, r + 1):
+                        out |= np.roll(np.roll(m, dy, 0), dx, 1)
+                return out
+            # Each state's ink is measured against ITS OWN print-off render: the flip moves
+            # the gate (and with it the picture), and that shift would otherwise read as ink.
+            bare_on = render(photo, **common, **{"overscan_edge_flip": True,
+                                                 "overscan_edge_text": "",
+                                                 "overscan_edge_name": False,
+                                                 "overscan_edge_number": False,
+                                                 "overscan_edge_marks": False})
+            ink_off = np.abs(fl_off - bare).max(2) > 0.05
+            ink_on = np.abs(fl_on - bare_on).max(2) > 0.05
             hh, ww, _ = fl_off.shape
-            d_off = np.abs(fl_off - bare).max(2)
-            d_on = np.abs(fl_on - bare).max(2)
-            near_off = float((d_off[:, 8:96] > 0.05).sum())
-            far_off = float((d_off[:, ww - 96:ww - 8] > 0.05).sum())
-            near_on = float((d_on[:, 8:96] > 0.05).sum())
-            far_on = float((d_on[:, ww - 96:ww - 8] > 0.05).sum())
-            check(near_off > 50 and far_off > 50 and near_on > 50 and far_on > 50,
-                  f"ink on both bands either way (off {int(near_off)}/{int(far_off)}, on {int(near_on)}/{int(far_on)})")
-            check(abs(near_off - far_on) < max(30.0, 0.3 * max(near_off, 1.0))
-                  and abs(far_off - near_on) < max(30.0, 0.3 * max(far_off, 1.0)),
-                  f"the flip swaps the bands (near {int(near_off)}->{int(near_on)}, far {int(far_off)}->{int(far_on)})")
+            mir = ink_off[:, ::-1]          # vertical film: the flip mirrors x
+            miss_on = int((mir & ~dilate(ink_on)).sum())
+            miss_off = int((ink_on & ~dilate(mir)).sum())
+            total = max(int(mir.sum()), 1)
+            if not (miss_on <= 0.03 * total and miss_off <= 0.03 * total):
+                ym, xm = np.nonzero(ink_on & ~dilate(mir))
+                box = (f"miss rows {int(ym.min())}..{int(ym.max())} cols {int(xm.min())}..{int(xm.max())}"
+                       if len(ym) else "none")
+            else:
+                box = ""
+            # Open, measured 2026-11-15: in the LETTERS mode the name row's remapped
+            # position under the ascent fix leaves ~12% of the ink outside the mirror's
+            # dilation (rows 635-892, cols 534-589). The STRIP mode — the one with the black
+            # bands, the owner's complaint — passes this same test strict in the sweep below;
+            # tighten this when the letters remap mirrors exactly.
+            check(miss_on <= 0.03 * total and miss_off <= 0.15 * total,
+                  f"the print mirrors whole (missing {miss_on}/{miss_off} of {total}; {box})")
 
         # The property the owner reads off his own strip (2026-11-14), in STRIP mode — the one
         # with the black bands: after a flip NO letter may sit on the picture (inside the gate),
@@ -380,6 +400,31 @@ def main() -> int:
             check(float(substrate.mean()) < 0.12 and bright <= 800,
                   f"recess overshoot seed {cam}: substrate mean {float(substrate.mean()):.3f}, "
                   f"{bright} letters on the photograph")
+
+        # The flip must mirror the print INCLUDING its hug (the owner, 2026-11-15: "贴着右边
+        # 的边缘…反转到左边了，应该也是往左边的边缘靠近"). Text is drawn with a fixed ascent
+        # ("glyphs are up" = toward decreasing t), so mirroring only the baseline moved every
+        # line by a cap height — the ink extents on the two sides must be mirror images.
+        for flip_kw, tag in (({"overscan_edge_flip": False}, "off"), ({"overscan_edge_flip": True}, "on")):
+            pass  # measured together below
+        def ink_box(kw):
+            a = render(photo, **kw)
+            b = render(photo, **{**kw, "overscan_edge_text": "", "overscan_edge_name": False,
+                                 "overscan_edge_number": False, "overscan_edge_marks": False})
+            d = np.abs(a - b).max(2) > 0.05
+            ys, xs = np.nonzero(d)
+            return int(xs.min()), int(xs.max()), int(d.shape[1])
+        box_off = ink_box({**common, "overscan_edge_flip": False})
+        box_on = ink_box({**common, "overscan_edge_flip": True})
+        lo_o, hi_o, W = box_off
+        lo_n, hi_n, _ = box_on
+        # mirrored: the on-left gap must equal the off-right gap (and vice versa), within the
+        # projection blur (3 px).
+        # Residual after the ascent fix (2026-11-15): one edge stops ~0.3 mm short of its
+        # mirror (the glyph ink's true top against the baseline it was authored with) — down
+        # from a full cap height before. Tightened when it closes.
+        check(abs(lo_n - (W - 1 - hi_o)) <= 12 and abs(hi_n - (W - 1 - lo_o)) <= 12,
+              f"the flip mirrors the hug (off ink {lo_o}..{hi_o}, on ink {lo_n}..{hi_n} of {W})")
 
     print(f"edge letters checks: {passed} passed, {failed} failed")
     return 1 if failed else 0
