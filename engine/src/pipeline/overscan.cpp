@@ -1165,12 +1165,20 @@ bool rasterise(const OverscanLayout& L, const Group& g, std::vector<float>& cov,
         CGContextTranslateCTM(ctx, op.s, op.t);
         CGContextRotateCTM(ctx, op.rot_deg * M_PI / 180.0);
         if (op.scale_advances) CGContextScaleCTM(ctx, op.hscale, 1.0);
-        // t is down; glyphs are up — and under 反转 the print is a mirror image, so the
-        // ascent mirrors with it: mirroring only the baseline moved every line by a cap
-        // height (the owner, 2026-11-15: "反转到左边了，没有贴到左边…上下反转之后也不贴底").
-        CGContextSetTextMatrix(ctx, CGAffineTransformMakeScale(op.scale_advances ? 1.0 : op.hscale,
-                                                               L.flip ? 1.0 : -1.0));
+        // t is down; glyphs are up. The flip mirrors WHERE the line sits, never HOW it
+        // reads (the owner, 2026-11-15: "反转了之后它字体是反的…就像照镜子"): the baseline is
+        // mirrored by `finalize`, and the line is then shifted by its own ink's asymmetry
+        // (delta below) so the ink mirrors while the words stay right-reading.
+        CGContextSetTextMatrix(ctx, CGAffineTransformMakeScale(op.scale_advances ? 1.0 : op.hscale, -1.0));
         CGContextSetTextPosition(ctx, 0, 0);
+        if (L.flip && !g.date) {
+            // The edge print is caps and digits — the ink is [bl - cap, bl] about the
+            // baseline, and the mirrored line must sit [W - bl, W - bl + cap] while
+            // `finalize` only mirrors the baseline to W - bl. Shift by the cap: the words
+            // stay right-reading (the owner, 2026-11-15: "反转了之后它字体是反的") and the
+            // ink mirrors (the earlier complaint: not hugging the edge it lands on).
+            CGContextTranslateCTM(ctx, 0.0, CTFontGetCapHeight(font));
+        }
         CTLineDraw(line, ctx);
         CGContextRestoreGState(ctx);
         CFRelease(line); CFRelease(as); CFRelease(font);
